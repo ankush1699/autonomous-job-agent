@@ -78,7 +78,7 @@ document.querySelectorAll(".tab").forEach((tab) => {
     tab.classList.add("active");
     $(`#tab-${tab.dataset.tab}`).classList.remove("hidden");
     if (tab.dataset.tab === "applications") loadEntries();
-    if (tab.dataset.tab === "scraper") { loadScraperSettings(); loadAtsCompanies(); loadLinkedInCompanies(); }
+    if (tab.dataset.tab === "scraper") { loadScraperTab(); }
   });
 });
 
@@ -732,347 +732,216 @@ function startPolling() {
   }, 3000);
 }
 
-// ── Scraper ──────────────────────────────────────────────────────────────
-// job_id is persisted to localStorage so a page refresh (or coming back to
-// this tab later) resumes showing real progress instead of silently losing
-// track of an in-progress cycle — a scrape can run 20-30+ minutes, and
-// before this the "running" text was pure in-memory JS state with no way
-// to tell an actually-stuck cycle apart from one that's still working.
+// ── Scraper tab (redesigned Oct 2026) ─────────────────────────────────────
+// Five plain questions instead of a per-platform matrix:
+//   1 what jobs (roles, star = search deeper)  2 where & how recent
+//   3 where to look (sources + one depth preset) 4 companies to watch
+//   5 what to keep (best N scoring >= X)
+// The banner at the top is the server's own description of the next run
+// (GET /api/scraper/plan), so the UI never re-derives the rules. The original
+// per-platform table still exists under Advanced (custom mode).
+//
+// job_id is persisted to localStorage so a page refresh resumes showing real
+// progress for an in-flight cycle (a scrape can run 20-30+ minutes).
 const SCRAPE_JOB_KEY = "resume_agent_scrape_job_id";
-
-$("#scrape-btn").addEventListener("click", async () => {
-  $("#scrape-btn").disabled = true;
-  $("#scrape-status").innerHTML = `<div class="spinner-note">Saving current settings...</div>`;
-  try {
-    // Persist whatever's currently in the Search settings form BEFORE
-    // triggering the cycle, so "Run" always uses what's on screen right now
-    // — not whatever was last explicitly Saved (see collectScraperSettingsFromForm).
-    if (scraperSettingsCache) await saveScraperSettings();
-    $("#scrape-status").innerHTML = `<div class="spinner-note">Starting scrape cycle...</div>`;
-    const { job_id } = await api("/api/scrape", { method: "POST" });
-    localStorage.setItem(SCRAPE_JOB_KEY, job_id);
-    pollScrape(job_id);
-  } catch (e) {
-    $("#scrape-status").innerHTML = `<div class="error-msg">${e.message}</div>`;
-    $("#scrape-btn").disabled = false;
-  }
-});
-
-function scrapeProgressHtml(job) {
-  const detail = job.phase_detail || "Working...";
-  if (job.jobs_total) {
-    const pct = Math.round((job.jobs_scored / job.jobs_total) * 100);
-    return `
-      <div class="spinner-note">${detail}</div>
-      <div style="background:var(--hairline);border-radius:6px;overflow:hidden;height:8px;margin-top:8px;">
-        <div style="background:var(--blue);height:100%;width:${pct}%;transition:width 0.3s;"></div>
-      </div>
-      <div class="mono-label" style="margin-top:4px;">${job.jobs_scored}/${job.jobs_total} scored (${pct}%)${job.high_match_count ? ` — ${job.high_match_count} high-match` : ""}</div>`;
-  }
-  return `<div class="spinner-note">${detail}</div>`;
-}
-
-async function pollScrape(jobId) {
-  let job;
-  try {
-    job = await api(`/api/scrape/${jobId}`);
-  } catch (e) {
-    // Job no longer exists server-side — most likely the server restarted
-    // mid-cycle. Surface that honestly instead of hanging on "running"
-    // forever, and stop tracking it.
-    localStorage.removeItem(SCRAPE_JOB_KEY);
-    $("#scrape-btn").disabled = false;
-    $("#scrape-status").innerHTML = `<div class="error-msg">Lost track of this scrape job (the server may have restarted) — nothing is running anymore. Click "Run scrape cycle now" to start a fresh one.</div>`;
-    return;
-  }
-
-  if (job.status === "running") {
-    $("#scrape-btn").disabled = true;
-    $("#scrape-status").innerHTML = scrapeProgressHtml(job);
-    setTimeout(() => pollScrape(jobId), 5000);
-    return;
-  }
-
-  localStorage.removeItem(SCRAPE_JOB_KEY);
-  $("#scrape-btn").disabled = false;
-  $("#scrape-status").innerHTML =
-    job.status === "completed"
-      ? `<div class="spinner-note">${job.phase_detail || "Cycle complete"} — check the Applications tab for results.</div>`
-      : `<div class="error-msg">${job.error || job.phase_detail || "Scrape failed."}</div>`;
-}
-
-// ── Quick search — a one-off location/recency/title-scoped run that never
-// touches saved Search settings (unlike "Run", which persists the form
-// before firing). Mirrors the regular scrape's trigger/poll pattern above
-// but against its own endpoint, status div, and localStorage key, so the two
-// can run independently without interfering with each other.
 const QUICK_SEARCH_JOB_KEY = "resume_agent_quick_search_job_id";
 
-$("#quick-search-btn").addEventListener("click", async () => {
-  $("#quick-search-btn").disabled = true;
-  $("#quick-search-status").innerHTML = `<div class="spinner-note">Starting quick search...</div>`;
-  try {
-    const topN = parseInt($("#quick-search-top-n").value, 10) || 10;
-    const hoursOld = parseInt($("#quick-search-hours-old").value, 10);
-    const body = {
-      location: $("#quick-search-location").value.trim() || null,
-      hours_old: Number.isFinite(hoursOld) ? hoursOld : null,
-      keywords: $("#quick-search-keywords").value.trim() || null,
-      top_n: topN,
-    };
-    const { job_id } = await api("/api/quick-search", { method: "POST", body: JSON.stringify(body) });
-    localStorage.setItem(QUICK_SEARCH_JOB_KEY, job_id);
-    pollQuickSearch(job_id);
-  } catch (e) {
-    $("#quick-search-status").innerHTML = `<div class="error-msg">${e.message}</div>`;
-    $("#quick-search-btn").disabled = false;
-  }
-});
+let scraperSettingsCache = null;
+let settingsDirty = false;
 
-async function pollQuickSearch(jobId) {
-  let job;
-  try {
-    job = await api(`/api/scrape/${jobId}`);  // same job-tracking store as the regular scrape
-  } catch (e) {
-    localStorage.removeItem(QUICK_SEARCH_JOB_KEY);
-    $("#quick-search-btn").disabled = false;
-    $("#quick-search-status").innerHTML = `<div class="error-msg">Lost track of this search (the server may have restarted) — nothing is running anymore. Click "Search now" to start a fresh one.</div>`;
-    return;
-  }
+const PLATFORM_LABELS = { linkedin: "LinkedIn", indeed: "Indeed", dice: "Dice", google_jobs: "Google Jobs (SerpApi)" };
+const SOURCE_INFO = [
+  { key: "linkedin", label: "LinkedIn", note: "The biggest source. Searched politely; heavy use risks a temporary block." },
+  { key: "indeed", label: "Indeed", note: "Kept shallow on purpose: Indeed has flagged accounts for automated traffic." },
+  { key: "dice", label: "Dice", note: "Free and unlimited, good for tech roles." },
+  { key: "google_jobs", label: "Google Jobs", note: "Uses your SerpApi quota: 1 of 100 free monthly searches per role, per run." },
+  { key: "company_boards", label: "Company career pages", note: "Checks the companies you watch on their own job boards." },
+  { key: "linkedin_company_pages", label: "LinkedIn company pages", note: "An extra LinkedIn search limited to the companies you watch there." },
+];
+const POSTED_OPTIONS = [[24, "Last 24 hours"], [48, "Last 2 days"], [72, "Last 3 days"], [168, "Last week"], [336, "Last 2 weeks"]];
+const DEPTH_TEXT = {
+  light: "Light: a quick look. About 10 results per role on LinkedIn (20 for starred roles), fewer elsewhere. Cheapest and safest.",
+  normal: "Normal: the everyday setting. About 20 per role on LinkedIn (40 for starred roles), Dice 20, Indeed and Google Jobs limited to your first few roles.",
+  deep: "Deep: casts the widest net. About 35 per role on LinkedIn (60 for starred roles), Dice 40. Scores more jobs, so it costs more.",
+};
+const SOURCE_NAMES = {
+  greenhouse: "career page (Greenhouse)", lever: "career page (Lever)", ashby: "career page (Ashby)",
+  workday: "career page (Workday)", linkedin: "LinkedIn page",
+  linkedin_company_pages: "LinkedIn company pages", company_boards: "Company career pages",
+  indeed: "Indeed", dice: "Dice", google_jobs: "Google Jobs",
+};
+const REJECT_LABELS = {
+  already_seen: "already seen before", cross_platform_duplicate: "duplicate on another site",
+  too_senior_title: "too senior (title)", no_sponsorship: "no sponsorship / clearance",
+  description_too_short: "description too short", recruiting_agency: "recruiting agency",
+};
 
-  if (job.status === "running") {
-    $("#quick-search-btn").disabled = true;
-    $("#quick-search-status").innerHTML = scrapeProgressHtml(job);
-    setTimeout(() => pollQuickSearch(jobId), 5000);
-    return;
-  }
-
-  localStorage.removeItem(QUICK_SEARCH_JOB_KEY);
-  $("#quick-search-btn").disabled = false;
-  $("#quick-search-status").innerHTML =
-    job.status === "completed"
-      ? `<div class="spinner-note">${job.phase_detail || "Search complete"} — top matches are in the Applications tab.</div>`
-      : `<div class="error-msg">${job.error || job.phase_detail || "Quick search failed."}</div>`;
+function timeAgo(iso) {
+  if (!iso) return "";
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 90) return "just now";
+  if (s < 3600) return `${Math.round(s / 60)} min ago`;
+  if (s < 86400) return `${Math.round(s / 3600)} h ago`;
+  return `${Math.round(s / 86400)} d ago`;
 }
 
-// ── Scraper search settings ─────────────────────────────────────────────
-// Keywords are select/deselect (checkbox), not a plain text field — see
-// scraper/scraper_settings.py's docstring for why. Each platform then picks
-// its OWN subset of the enabled master pool at its OWN count — SerpApi's
-// hard monthly quota wants few keywords, Dice is free and can go deep.
-// Everything here is read fresh by the scraper on every cycle (no restart
-// needed to apply).
-let scraperSettingsCache = null;
-const PLATFORM_LABELS = { linkedin: "LinkedIn", indeed: "Indeed", dice: "Dice", google_jobs: "Google Jobs (SerpApi)" };
+function sum(obj) { return Object.values(obj || {}).reduce((a, b) => a + (b || 0), 0); }
 
+async function loadScraperTab() {
+  await loadScraperSettings();
+  loadPlan();
+  loadCompanies();
+  loadRunHistory();
+}
+
+// ── Settings: load, render, collect, save ────────────────────────────────
 async function loadScraperSettings() {
   try {
     scraperSettingsCache = await api("/api/scraper-settings");
-    renderKeywordCheckboxes();
-    renderPlatformConfig();
-    $("#scraper-location").value = scraperSettingsCache.location || "";
-    $("#scraper-remote-only").checked = !!scraperSettingsCache.remote_only;
-    $("#scraper-entry-level-only").checked = !!scraperSettingsCache.entry_level_only;
-    $("#scraper-exclude-agencies").checked = !!scraperSettingsCache.exclude_recruiting_agencies;
-    $("#scraper-hours-old").value = scraperSettingsCache.hours_old || 24;
-    $("#scraper-daily-cap").value = scraperSettingsCache.daily_cap || 25;
-    $("#scraper-min-score").value = scraperSettingsCache.min_score ?? (metaCache && metaCache.min_score) ?? 75;
+    settingsDirty = false;
+    renderScraperForm();
   } catch (e) {
-    $("#scraper-settings-status").innerHTML = `<div class="error-msg">${e.message}</div>`;
+    $("#scraper-settings-status").innerHTML = `<div class="error-msg">${escapeHtml(e.message)}</div>`;
   }
 }
 
-function renderKeywordCheckboxes() {
-  const keywords = scraperSettingsCache.keywords || [];
-  $("#keyword-checkbox-list").innerHTML = keywords.length
-    ? keywords.map((k, i) => `
-        <label class="checkbox-row" style="margin-top:0;">
-          <input type="checkbox" data-keyword-index="${i}" ${k.enabled ? "checked" : ""} />
-          <span style="flex:1;">${escapeHtml(k.value)}</span>
-          <button data-remove-keyword-index="${i}" class="secondary danger" style="margin-top:0;padding:2px 10px;font-size:0.7rem;">Remove</button>
-        </label>`).join("")
-    : `<div class="spinner-note">No keywords yet — add one below.</div>`;
-  document.querySelectorAll("[data-keyword-index]").forEach((cb) => {
-    cb.addEventListener("change", () => {
-      scraperSettingsCache.keywords[parseInt(cb.dataset.keywordIndex, 10)].enabled = cb.checked;
-      renderPlatformConfig(); // enabled-set changed — refresh which keywords each platform can offer
-    });
-  });
-  document.querySelectorAll("[data-remove-keyword-index]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const removed = scraperSettingsCache.keywords[parseInt(btn.dataset.removeKeywordIndex, 10)].value;
-      scraperSettingsCache.keywords.splice(parseInt(btn.dataset.removeKeywordIndex, 10), 1);
-      // Also drop it from every platform's selected subset so it can't
-      // linger there disabled-but-still-listed.
-      Object.values(scraperSettingsCache.platforms || {}).forEach((cfg) => {
-        cfg.keywords = (cfg.keywords || []).filter((v) => v !== removed);
-      });
-      renderKeywordCheckboxes();
-      renderPlatformConfig();
-    });
-  });
+function markDirty() {
+  settingsDirty = true;
+  $("#settings-dirty").classList.remove("hidden");
 }
 
-$("#keyword-add-btn").addEventListener("click", () => {
+function fillPostedSelect(sel, hours, { includeSaved = false } = {}) {
+  const opts = POSTED_OPTIONS.slice();
+  if (hours && !opts.some(([h]) => h === hours)) opts.push([hours, `Last ${hours} hours`]);
+  sel.innerHTML = opts.map(([h, label]) =>
+    `<option value="${h}" ${h === hours ? "selected" : ""}>${label}</option>`).join("");
+}
+
+function renderScraperForm() {
+  const s = scraperSettingsCache;
+  renderRoleChips();
+  renderSources();
+  renderDepth();
+  renderPlatformConfig();
+  $("#scraper-location").value = s.location || "";
+  fillPostedSelect($("#scraper-posted"), s.hours_old || 24);
+  $("#scraper-remote-only").checked = !!s.remote_only;
+  $("#scraper-entry-level-only").checked = !!s.entry_level_only;
+  $("#scraper-exclude-agencies").checked = !!s.exclude_recruiting_agencies;
+  $("#scraper-daily-cap").value = s.daily_cap || 25;
+  $("#scraper-min-score").value = s.min_score ?? (metaCache && metaCache.min_score) ?? 80;
+  $("#settings-dirty").classList.toggle("hidden", !settingsDirty);
+}
+
+function renderRoleChips() {
+  const keywords = scraperSettingsCache.keywords || [];
+  $("#role-chips").innerHTML = keywords.length
+    ? keywords.map((k, i) => `
+        <span class="chip ${k.enabled ? "on" : ""}">
+          <button type="button" class="chip-label" data-role-toggle="${i}" title="${k.enabled ? "On: click to turn off" : "Off: click to turn on"}">${escapeHtml(k.value)}</button>
+          <button type="button" class="chip-star ${k.focus ? "on" : ""}" data-role-star="${i}" title="${k.focus ? "Starred: searched deeper. Click to unstar" : "Star to search this role deeper"}" aria-label="Star ${escapeHtml(k.value)}">&#9733;</button>
+          <button type="button" class="chip-x" data-role-remove="${i}" title="Remove ${escapeHtml(k.value)}" aria-label="Remove ${escapeHtml(k.value)}">&times;</button>
+        </span>`).join("")
+    : `<div class="spinner-note">No roles yet. Add one below.</div>`;
+  document.querySelectorAll("[data-role-toggle]").forEach((b) => b.addEventListener("click", () => {
+    const k = scraperSettingsCache.keywords[+b.dataset.roleToggle];
+    k.enabled = !k.enabled;
+    if (!k.enabled) k.focus = false;
+    markDirty(); renderRoleChips(); renderPlatformConfig();
+  }));
+  document.querySelectorAll("[data-role-star]").forEach((b) => b.addEventListener("click", () => {
+    const k = scraperSettingsCache.keywords[+b.dataset.roleStar];
+    k.focus = !k.focus;
+    if (k.focus) k.enabled = true;
+    markDirty(); renderRoleChips(); renderPlatformConfig();
+  }));
+  document.querySelectorAll("[data-role-remove]").forEach((b) => b.addEventListener("click", () => {
+    const removed = scraperSettingsCache.keywords[+b.dataset.roleRemove].value;
+    scraperSettingsCache.keywords.splice(+b.dataset.roleRemove, 1);
+    Object.values(scraperSettingsCache.platforms || {}).forEach((cfg) => {
+      cfg.keywords = (cfg.keywords || []).filter((v) => (typeof v === "object" ? v.value : v) !== removed);
+    });
+    markDirty(); renderRoleChips(); renderPlatformConfig();
+  }));
+}
+
+function addRoleFromInput() {
   const val = $("#keyword-add-input").value.trim();
   if (!val || !scraperSettingsCache) return;
-  scraperSettingsCache.keywords.push({ value: val, enabled: true });
-  $("#keyword-add-input").value = "";
-  renderKeywordCheckboxes();
-  renderPlatformConfig();
-});
-
-// LinkedIn is the one platform with a count PER KEYWORD instead of one
-// shared count for all of them ({"keywords": [{"value","count"}, ...]}
-// instead of {"keywords": [...strings], "count": N}) — the daily_cap's
-// ranking is global/score-based, not keyword-aware, so a broad title that
-// happens to score high across many generic postings can otherwise crowd
-// out a narrower title's candidates entirely; per-keyword counts are the
-// lever to deliberately weight one title's representation over another.
-const PER_KEYWORD_COUNT_PLATFORMS = new Set(["linkedin"]);
-
-function renderPlatformConfig() {
-  const enabledValues = (scraperSettingsCache.keywords || []).filter((k) => k.enabled).map((k) => k.value);
-  const platforms = scraperSettingsCache.platforms || {};
-  $("#platform-config-list").innerHTML = Object.keys(PLATFORM_LABELS).map((platform) => {
-    const cfg = platforms[platform] || { keywords: [], count: 20 };
-    const perKeywordCounts = PER_KEYWORD_COUNT_PLATFORMS.has(platform);
-    const keywordEntries = cfg.keywords || [];
-    // Normalize to {value, enabled, count} regardless of which shape this
-    // platform's keywords are stored in — a plain string (shared-count
-    // platforms) or a {value,count} object (LinkedIn).
-    const selected = new Map(keywordEntries.map((k) =>
-      typeof k === "object" ? [k.value, k.count ?? 15] : [k, cfg.count || 20]
-    ));
-    const keywordRows = enabledValues.length
-      ? enabledValues.map((val) => {
-          const isSelected = selected.has(val);
-          const countInput = perKeywordCounts
-            ? `<input type="number" data-platform-keyword-count="${platform}" data-keyword-for-count="${escapeHtml(val)}"
-                 value="${isSelected ? selected.get(val) : 15}" min="1" max="100"
-                 style="width:60px;padding:3px 6px;margin-left:8px;" ${isSelected ? "" : "disabled"} />`
-            : "";
-          return `
-          <label class="checkbox-row" style="margin-top:0;justify-content:space-between;">
-            <span style="display:flex;align-items:center;gap:8px;">
-              <input type="checkbox" data-platform="${platform}" data-platform-keyword="${escapeHtml(val)}" ${isSelected ? "checked" : ""} />
-              <span>${escapeHtml(val)}</span>
-            </span>
-            ${countInput}
-          </label>`;
-        }).join("")
-      : `<span class="spinner-note">No keywords enabled in the pool above.</span>`;
-    // Non-per-keyword platforms keep their single shared count control;
-    // per-keyword platforms drop it entirely — the count now lives inline
-    // with each keyword row above instead.
-    const sharedCountControl = perKeywordCounts ? "" : `
-          <label style="margin:0;display:flex;align-items:center;gap:6px;">
-            <span class="mono-label">count/keyword</span>
-            <input type="number" data-platform-count="${platform}" value="${cfg.count || 20}" min="1" max="100" style="width:70px;padding:4px 8px;" />
-          </label>`;
-    return `
-      <div style="border:1px solid var(--hairline);border-radius:6px;padding:12px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
-          <strong class="mono-label">${PLATFORM_LABELS[platform]}</strong>
-          ${sharedCountControl}
-        </div>
-        <div style="display:flex;flex-direction:column;gap:4px;margin-top:8px;">${keywordRows}</div>
-      </div>`;
-  }).join("");
-
-  // For per-keyword platforms, cfg.keywords holds {value,count} objects —
-  // find-or-create the entry for this keyword. Must also match an EXISTING
-  // bare-string entry (the old shared-count shape, e.g. from a settings
-  // file saved before this feature existed) and upgrade it in place —
-  // matching objects only left a stale string entry AND a new object entry
-  // both in the array for the same keyword, causing that keyword to be
-  // scraped twice per cycle with two different counts. This also strips any
-  // OTHER duplicate entries for the same value it finds along the way, so a
-  // legacy file gets fully cleaned up the next time it's touched, not just
-  // patched around.
-  function _linkedinKeywordEntry(cfg, kw) {
-    cfg.keywords = cfg.keywords || [];
-    const matches = cfg.keywords.filter((k) => (typeof k === "object" ? k.value : k) === kw);
-    let entry = matches.find((k) => typeof k === "object");
-    if (!entry) {
-      const legacyCount = (typeof cfg.count === "number") ? cfg.count : 15;
-      entry = { value: kw, count: legacyCount };
-    }
-    cfg.keywords = cfg.keywords.filter((k) => (typeof k === "object" ? k.value : k) !== kw);
-    cfg.keywords.push(entry);
-    return entry;
+  if (scraperSettingsCache.keywords.some((k) => k.value.toLowerCase() === val.toLowerCase())) {
+    $("#keyword-add-input").value = "";
+    return;
   }
+  scraperSettingsCache.keywords.push({ value: val, enabled: true, focus: false });
+  $("#keyword-add-input").value = "";
+  markDirty(); renderRoleChips(); renderPlatformConfig();
+}
+$("#keyword-add-btn").addEventListener("click", addRoleFromInput);
+$("#keyword-add-input").addEventListener("keydown", (e) => { if (e.key === "Enter") addRoleFromInput(); });
 
-  document.querySelectorAll("[data-platform-keyword]").forEach((cb) => {
-    cb.addEventListener("change", () => {
-      const platform = cb.dataset.platform;
-      const kw = cb.dataset.platformKeyword;
-      const cfg = scraperSettingsCache.platforms[platform] || (scraperSettingsCache.platforms[platform] = { keywords: [], count: 20 });
-      if (PER_KEYWORD_COUNT_PLATFORMS.has(platform)) {
-        cfg.keywords = cfg.keywords || [];
-        if (cb.checked) {
-          _linkedinKeywordEntry(cfg, kw);
-        } else {
-          cfg.keywords = cfg.keywords.filter((k) => (typeof k === "object" ? k.value : k) !== kw);
-        }
-      } else {
-        cfg.keywords = cfg.keywords || [];
-        if (cb.checked && !cfg.keywords.includes(kw)) cfg.keywords.push(kw);
-        if (!cb.checked) cfg.keywords = cfg.keywords.filter((v) => v !== kw);
-      }
-      renderPlatformConfig(); // re-render so the count input enables/disables to match
-    });
-  });
-  document.querySelectorAll("[data-platform-count]").forEach((input) => {
-    input.addEventListener("change", () => {
-      const platform = input.dataset.platformCount;
-      const cfg = scraperSettingsCache.platforms[platform] || (scraperSettingsCache.platforms[platform] = { keywords: [], count: 20 });
-      cfg.count = parseInt(input.value, 10) || 20;
-    });
-  });
-  document.querySelectorAll("[data-platform-keyword-count]").forEach((input) => {
-    input.addEventListener("change", () => {
-      const platform = input.dataset.platformKeywordCount;
-      const kw = input.dataset.keywordForCount;
-      const cfg = scraperSettingsCache.platforms[platform] || (scraperSettingsCache.platforms[platform] = { keywords: [], count: 20 });
-      const entry = _linkedinKeywordEntry(cfg, kw);
-      entry.count = parseInt(input.value, 10) || 15;
-    });
-  });
+function renderSources() {
+  const sources = scraperSettingsCache.sources || {};
+  $("#source-list").innerHTML = SOURCE_INFO.map((src) => `
+    <label class="source-row">
+      <input type="checkbox" data-source="${src.key}" ${sources[src.key] !== false ? "checked" : ""} />
+      <span><strong>${src.label}</strong><span class="source-note">${src.note}</span></span>
+    </label>`).join("");
+  document.querySelectorAll("[data-source]").forEach((cb) => cb.addEventListener("change", () => {
+    scraperSettingsCache.sources = { ...(scraperSettingsCache.sources || {}), [cb.dataset.source]: cb.checked };
+    markDirty();
+  }));
 }
 
-// Reads whatever is currently displayed in the Search settings form — used
-// by both the explicit Save button AND "Run scrape cycle now" (see below).
-// Without this shared read, "Run" used to fire /api/scrape directly against
-// whatever was last explicitly SAVED to disk, silently ignoring any edits
-// sitting in the form if the user forgot to click Save first — a real
-// live bug: changing keywords/counts/checkboxes and clicking Run reused the
-// old persisted settings with no warning.
+function renderDepth() {
+  const s = scraperSettingsCache;
+  const simple = s.mode === "simple";
+  document.querySelectorAll("#depth-seg [data-depth]").forEach((b) => {
+    b.classList.toggle("active", simple && s.depth === b.dataset.depth);
+  });
+  $("#depth-explain").textContent = simple ? DEPTH_TEXT[s.depth] || "" : "";
+  $("#custom-mode-note").classList.toggle("hidden", simple);
+}
+document.querySelectorAll("#depth-seg [data-depth]").forEach((b) => b.addEventListener("click", () => {
+  if (!scraperSettingsCache) return;
+  scraperSettingsCache.mode = "simple";
+  scraperSettingsCache.depth = b.dataset.depth;
+  markDirty(); renderDepth();
+}));
+
+["#scraper-location", "#scraper-posted", "#scraper-remote-only", "#scraper-entry-level-only",
+ "#scraper-exclude-agencies", "#scraper-daily-cap", "#scraper-min-score"].forEach((sel) => {
+  $(sel).addEventListener("change", markDirty);
+  $(sel).addEventListener("input", markDirty);
+});
+
+// Reads what is on screen right now. Used by Save AND by "Run now" — before
+// this existed, Run used whatever was last saved to disk and silently ignored
+// edits still sitting in the form.
 function collectScraperSettingsFromForm() {
+  const s = scraperSettingsCache;
+  const minScore = parseInt($("#scraper-min-score").value, 10);
   return {
-    keywords: scraperSettingsCache.keywords,
-    platforms: scraperSettingsCache.platforms,
+    keywords: s.keywords,
+    platforms: s.platforms,
+    mode: s.mode,
+    depth: s.depth,
+    sources: s.sources,
     location: $("#scraper-location").value.trim() || "United States",
     remote_only: $("#scraper-remote-only").checked,
-    hours_old: parseInt($("#scraper-hours-old").value, 10) || 24,
+    hours_old: parseInt($("#scraper-posted").value, 10) || 24,
     entry_level_only: $("#scraper-entry-level-only").checked,
     exclude_recruiting_agencies: $("#scraper-exclude-agencies").checked,
     daily_cap: parseInt($("#scraper-daily-cap").value, 10) || 25,
-    // `|| 75` would turn a typed 0 into 75; only fall back when the field is
-    // actually empty/non-numeric. Range is enforced server-side (0-100).
-    min_score: (() => {
-      const v = parseInt($("#scraper-min-score").value, 10);
-      return Number.isFinite(v) ? v : (scraperSettingsCache.min_score ?? 75);
-    })(),
+    min_score: Number.isFinite(minScore) ? minScore : (s.min_score ?? 80),
   };
 }
 
 async function saveScraperSettings() {
-  const settings = collectScraperSettingsFromForm();
-  scraperSettingsCache = await api("/api/scraper-settings", { method: "POST", body: JSON.stringify(settings) });
-  loadMeta();  // min_score lives in these settings — keep /api/meta's copy (and any UI derived from it) current
-  renderKeywordCheckboxes();
-  renderPlatformConfig();
+  scraperSettingsCache = await api("/api/scraper-settings", { method: "POST", body: JSON.stringify(collectScraperSettingsFromForm()) });
+  settingsDirty = false;
+  loadMeta();  // min_score lives here; keep /api/meta's copy current
+  renderScraperForm();
+  loadPlan();
 }
 
 $("#scraper-settings-save-btn").addEventListener("click", async () => {
@@ -1080,102 +949,335 @@ $("#scraper-settings-save-btn").addEventListener("click", async () => {
   $("#scraper-settings-save-btn").disabled = true;
   try {
     await saveScraperSettings();
-    $("#scraper-settings-status").innerHTML = `<div class="spinner-note">Saved — takes effect on the next scrape cycle, no restart needed.</div>`;
+    $("#scraper-settings-status").innerHTML = `<div class="spinner-note">Saved. Takes effect on the next run, no restart needed.</div>`;
   } catch (e) {
-    $("#scraper-settings-status").innerHTML = `<div class="error-msg">${e.message}</div>`;
+    $("#scraper-settings-status").innerHTML = `<div class="error-msg">${escapeHtml(e.message)}</div>`;
   } finally {
     $("#scraper-settings-save-btn").disabled = false;
   }
 });
 
-// ── ATS target companies ────────────────────────────────────────────────
-async function loadAtsCompanies() {
+// ── Plan banner ──────────────────────────────────────────────────────────
+async function loadPlan() {
   try {
-    const companies = await api("/api/ats-companies");
-    $("#ats-company-list").innerHTML = companies.length
-      ? companies.map((c) => `
-          <div class="run-row" style="padding:6px 0;">
-            <span class="mono-label">${escapeHtml(c.company)} — ${escapeHtml(c.ats)} — ${escapeHtml(c.identifier)}</span>
-            <button data-remove-ats-company="${escapeHtml(c.company)}" class="secondary" style="margin-top:0;padding:4px 10px;">Remove</button>
-          </div>`).join("")
-      : `<div class="spinner-note">No companies configured yet — this source stays inactive until you add one.</div>`;
-    document.querySelectorAll("[data-remove-ats-company]").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        try {
-          await api(`/api/ats-companies/${encodeURIComponent(btn.dataset.removeAtsCompany)}`, { method: "DELETE" });
-          loadAtsCompanies();
-        } catch (e) {
-          alert(e.message);
-        }
-      });
-    });
+    const plan = await api("/api/scraper/plan");
+    $("#plan-sentence").textContent = plan.sentence;
+    const bits = [];
+    bits.push(plan.mode === "simple" ? `Depth: ${plan.depth}` : "Custom per-platform setup");
+    if (plan.focus_roles && plan.focus_roles.length) bits.push(`Starred: ${plan.focus_roles.map(escapeHtml).join(", ")}`);
+    bits.push(`Up to ${plan.max_postings_from_boards} postings from job boards`);
+    if (plan.google_jobs_searches_per_run) bits.push(`Google Jobs: ${plan.google_jobs_searches_per_run} of 100 monthly searches per run`);
+    const lr = plan.last_run;
+    if (lr) {
+      const cost = lr.est_cost_usd ? `, about $${lr.est_cost_usd.toFixed(2)}` : "";
+      bits.push(lr.status === "error"
+        ? `Last run ${timeAgo(lr.finished_at)}: failed (${escapeHtml(lr.error || "error")})`
+        : `Last run ${timeAgo(lr.finished_at)}: found ${sum(lr.found)}, scored ${lr.scored.total} (${lr.scored.model_calls} new${cost}), kept ${lr.kept}`);
+    }
+    $("#plan-meta").innerHTML = bits.map((b) => `<span>${b}</span>`).join("");
   } catch (e) {
-    $("#ats-company-list").innerHTML = `<div class="error-msg">${e.message}</div>`;
+    $("#plan-sentence").textContent = "Could not load the plan.";
+    $("#plan-meta").innerHTML = `<span class="error-msg">${escapeHtml(e.message)}</span>`;
   }
 }
 
-$("#ats-company-add-btn").addEventListener("click", async () => {
-  const company = $("#ats-company-name").value.trim();
-  const ats = $("#ats-company-type").value;
-  const identifier = $("#ats-company-identifier").value.trim();
-  if (!company || !identifier) {
-    $("#ats-company-status").innerHTML = `<div class="error-msg">Company name and identifier are required.</div>`;
-    return;
-  }
+// ── Run now / progress ───────────────────────────────────────────────────
+$("#scrape-btn").addEventListener("click", async () => {
+  $("#scrape-btn").disabled = true;
   try {
-    await api("/api/ats-companies", { method: "POST", body: JSON.stringify({ company, ats, identifier }) });
-    $("#ats-company-name").value = "";
-    $("#ats-company-identifier").value = "";
-    $("#ats-company-status").innerHTML = "";
-    loadAtsCompanies();
+    if (scraperSettingsCache && settingsDirty) {
+      $("#scrape-status").innerHTML = `<div class="spinner-note">Saving your changes first...</div>`;
+      await saveScraperSettings();
+    }
+    $("#scrape-status").innerHTML = `<div class="spinner-note">Starting...</div>`;
+    const { job_id } = await api("/api/scrape", { method: "POST" });
+    localStorage.setItem(SCRAPE_JOB_KEY, job_id);
+    pollScrape(job_id);
   } catch (e) {
-    $("#ats-company-status").innerHTML = `<div class="error-msg">${e.message}</div>`;
+    $("#scrape-status").innerHTML = `<div class="error-msg">${escapeHtml(e.message)}</div>`;
+    $("#scrape-btn").disabled = false;
   }
 });
 
-// ── LinkedIn target companies ───────────────────────────────────────────
-async function loadLinkedInCompanies() {
+function scrapeProgressHtml(job) {
+  const detail = escapeHtml(job.phase_detail || "Working...");
+  if (job.jobs_total) {
+    const pct = Math.round((job.jobs_scored / job.jobs_total) * 100);
+    return `
+      <div class="spinner-note">${detail}</div>
+      <div class="progress"><div style="width:${pct}%;"></div></div>
+      <div class="mono-label" style="margin-top:4px;">${job.jobs_scored}/${job.jobs_total} scored (${pct}%)${job.high_match_count ? ` · ${job.high_match_count} passed your bar` : ""}</div>`;
+  }
+  return `<div class="spinner-note">${detail}</div>`;
+}
+
+function afterRunFinished() {
+  loadPlan();
+  loadRunHistory();
+  loadCompanies();
+}
+
+async function pollScrape(jobId) {
+  let job;
   try {
-    const companies = await api("/api/linkedin-companies");
-    $("#li-company-list").innerHTML = companies.length
-      ? companies.map((c) => `
-          <div class="run-row" style="padding:6px 0;">
-            <span class="mono-label">${escapeHtml(c.company)} — id ${escapeHtml(String(c.linkedin_id))}</span>
-            <button data-remove-li-company="${escapeHtml(c.company)}" class="secondary" style="margin-top:0;padding:4px 10px;">Remove</button>
-          </div>`).join("")
-      : `<div class="spinner-note">No companies configured yet — this pass stays inactive until you add one.</div>`;
-    document.querySelectorAll("[data-remove-li-company]").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        try {
-          await api(`/api/linkedin-companies/${encodeURIComponent(btn.dataset.removeLiCompany)}`, { method: "DELETE" });
-          loadLinkedInCompanies();
-        } catch (e) {
-          alert(e.message);
-        }
-      });
-    });
+    job = await api(`/api/scrape/${jobId}`);
   } catch (e) {
-    $("#li-company-list").innerHTML = `<div class="error-msg">${e.message}</div>`;
+    localStorage.removeItem(SCRAPE_JOB_KEY);
+    $("#scrape-btn").disabled = false;
+    $("#scrape-status").innerHTML = `<div class="error-msg">Lost track of this run (the server may have restarted). Nothing is running now. Click "Run now" to start a fresh one.</div>`;
+    return;
+  }
+  if (job.status === "running") {
+    $("#scrape-btn").disabled = true;
+    $("#scrape-status").innerHTML = scrapeProgressHtml(job);
+    setTimeout(() => pollScrape(jobId), 5000);
+    return;
+  }
+  localStorage.removeItem(SCRAPE_JOB_KEY);
+  $("#scrape-btn").disabled = false;
+  $("#scrape-status").innerHTML = job.status === "completed"
+    ? `<div class="spinner-note">${escapeHtml(job.phase_detail || "Run complete")}. Results are in the Applications tab.</div>`
+    : `<div class="error-msg">${escapeHtml(job.error || job.phase_detail || "The run failed.")}</div>`;
+  afterRunFinished();
+}
+
+// ── Search once elsewhere (one-off, never saved) ─────────────────────────
+$("#oneoff-open-btn").addEventListener("click", () => {
+  const s = scraperSettingsCache || {};
+  $("#quick-search-location").value = $("#scraper-location").value || s.location || "";
+  fillPostedSelect($("#quick-search-posted"), parseInt($("#scraper-posted").value, 10) || s.hours_old || 24);
+  $("#quick-search-keywords").value = (s.keywords || []).filter((k) => k.enabled).map((k) => k.value).join(", ");
+  $("#oneoff-card").classList.remove("hidden");
+  $("#quick-search-location").focus();
+});
+$("#oneoff-close-btn").addEventListener("click", () => $("#oneoff-card").classList.add("hidden"));
+
+$("#quick-search-btn").addEventListener("click", async () => {
+  $("#quick-search-btn").disabled = true;
+  $("#quick-search-status").innerHTML = `<div class="spinner-note">Starting...</div>`;
+  try {
+    const body = {
+      location: $("#quick-search-location").value.trim() || null,
+      hours_old: parseInt($("#quick-search-posted").value, 10) || null,
+      keywords: $("#quick-search-keywords").value.split(",").map((x) => x.trim()).filter(Boolean).join(",") || null,
+      top_n: parseInt($("#quick-search-top-n").value, 10) || 10,
+    };
+    const { job_id } = await api("/api/quick-search", { method: "POST", body: JSON.stringify(body) });
+    localStorage.setItem(QUICK_SEARCH_JOB_KEY, job_id);
+    pollQuickSearch(job_id);
+  } catch (e) {
+    $("#quick-search-status").innerHTML = `<div class="error-msg">${escapeHtml(e.message)}</div>`;
+    $("#quick-search-btn").disabled = false;
+  }
+});
+
+async function pollQuickSearch(jobId) {
+  let job;
+  try {
+    job = await api(`/api/scrape/${jobId}`);
+  } catch (e) {
+    localStorage.removeItem(QUICK_SEARCH_JOB_KEY);
+    $("#quick-search-btn").disabled = false;
+    $("#quick-search-status").innerHTML = `<div class="error-msg">Lost track of this search (the server may have restarted). Click "Search now" to start a fresh one.</div>`;
+    return;
+  }
+  $("#oneoff-card").classList.remove("hidden");
+  if (job.status === "running") {
+    $("#quick-search-btn").disabled = true;
+    $("#quick-search-status").innerHTML = scrapeProgressHtml(job);
+    setTimeout(() => pollQuickSearch(jobId), 5000);
+    return;
+  }
+  localStorage.removeItem(QUICK_SEARCH_JOB_KEY);
+  $("#quick-search-btn").disabled = false;
+  $("#quick-search-status").innerHTML = job.status === "completed"
+    ? `<div class="spinner-note">${escapeHtml(job.phase_detail || "Search complete")}. Top matches are in the Applications tab.</div>`
+    : `<div class="error-msg">${escapeHtml(job.error || job.phase_detail || "The search failed.")}</div>`;
+  afterRunFinished();
+}
+
+// ── Companies to watch (one list for career pages + LinkedIn pages) ──────
+async function loadCompanies() {
+  try {
+    const rows = await api("/api/target-companies");
+    $("#company-list").innerHTML = rows.length
+      ? `<div class="mono-label company-count">${rows.length} companies watched</div>` + rows.map((c) => `
+          <div class="company-row">
+            <div class="company-main">
+              <span class="company-name">${escapeHtml(c.company)}</span>
+              <span class="badge">${escapeHtml(SOURCE_NAMES[c.source] || c.source)}</span>
+            </div>
+            <span class="company-found">${c.found_last_run == null ? "" : `${c.found_last_run} found last run`}</span>
+            <button class="secondary danger small" data-unwatch-source="${escapeHtml(c.source)}" data-unwatch-company="${escapeHtml(c.company)}">Remove</button>
+          </div>`).join("")
+      : `<div class="spinner-note">No companies yet. Add the ones you most want to work for.</div>`;
+    document.querySelectorAll("[data-unwatch-company]").forEach((b) => b.addEventListener("click", async () => {
+      try {
+        await api(`/api/target-companies/${encodeURIComponent(b.dataset.unwatchSource)}/${encodeURIComponent(b.dataset.unwatchCompany)}`, { method: "DELETE" });
+        loadCompanies(); loadPlan();
+      } catch (e) { alert(e.message); }
+    }));
+  } catch (e) {
+    $("#company-list").innerHTML = `<div class="error-msg">${escapeHtml(e.message)}</div>`;
   }
 }
 
-$("#li-company-add-btn").addEventListener("click", async () => {
-  const company = $("#li-company-name").value.trim();
-  const linkedin_id = $("#li-company-id").value.trim();
-  if (!company || !linkedin_id) {
-    $("#li-company-status").innerHTML = `<div class="error-msg">Company name and LinkedIn id are required.</div>`;
-    return;
-  }
+async function detectCompany() {
+  const name = $("#company-name-input").value.trim();
+  const url = $("#company-url-input").value.trim();
+  if (!name && !url) return;
+  $("#company-detect-btn").disabled = true;
+  $("#company-detect-results").innerHTML = `<div class="spinner-note">Looking for ${escapeHtml(name || url)}...</div>`;
   try {
-    await api("/api/linkedin-companies", { method: "POST", body: JSON.stringify({ company, linkedin_id: Number(linkedin_id) }) });
-    $("#li-company-name").value = "";
-    $("#li-company-id").value = "";
-    $("#li-company-status").innerHTML = "";
-    loadLinkedInCompanies();
+    const { candidates } = await api("/api/target-companies/detect", { method: "POST", body: JSON.stringify({ name, url: url || null }) });
+    if (!candidates.length) {
+      $("#company-detect-results").innerHTML = `<div class="notice">Couldn't find a careers page or LinkedIn page for "${escapeHtml(name || url)}". Paste its careers page or LinkedIn company URL and press Find again.</div>`;
+      return;
+    }
+    $("#company-detect-results").innerHTML = `
+      <div class="detect-list">${candidates.map((c, i) => `
+        <div class="detect-row">
+          <span><strong>${escapeHtml(c.label)}</strong> · ${escapeHtml(SOURCE_NAMES[c.source] || c.source)}${c.open_jobs != null ? ` · ${c.open_jobs} open jobs` : ""}
+          ${c.name_matches ? "" : `<span class="warn">name differs: check it's the right company</span>`}</span>
+          <button class="secondary small" data-watch-index="${i}">Watch</button>
+        </div>`).join("")}</div>`;
+    document.querySelectorAll("[data-watch-index]").forEach((b) => b.addEventListener("click", async () => {
+      const c = candidates[+b.dataset.watchIndex];
+      try {
+        await api("/api/target-companies", { method: "POST", body: JSON.stringify({ company: name || c.label, source: c.source, identifier: c.identifier }) });
+        $("#company-detect-results").innerHTML = "";
+        $("#company-name-input").value = ""; $("#company-url-input").value = "";
+        loadCompanies(); loadPlan();
+      } catch (e) {
+        $("#company-detect-results").innerHTML = `<div class="error-msg">${escapeHtml(e.message)}</div>`;
+      }
+    }));
   } catch (e) {
-    $("#li-company-status").innerHTML = `<div class="error-msg">${e.message}</div>`;
+    $("#company-detect-results").innerHTML = `<div class="error-msg">${escapeHtml(e.message)}</div>`;
+  } finally {
+    $("#company-detect-btn").disabled = false;
   }
-});
+}
+$("#company-detect-btn").addEventListener("click", detectCompany);
+$("#company-name-input").addEventListener("keydown", (e) => { if (e.key === "Enter") detectCompany(); });
+
+// ── Last runs: where jobs drop out ───────────────────────────────────────
+async function loadRunHistory() {
+  try {
+    const runs = await api("/api/scrape-history?limit=5");
+    if (!runs.length) {
+      $("#run-history").innerHTML = `<div class="spinner-note">No runs recorded yet. They appear here after your next run.</div>`;
+      return;
+    }
+    $("#run-history").innerHTML = runs.map((r) => {
+      const found = sum(r.found), passedFilters = sum(r.after_filters);
+      const cost = r.est_cost_usd ? ` · about $${r.est_cost_usd.toFixed(2)}` : "";
+      const head = r.status === "error"
+        ? `<span class="error-msg">failed: ${escapeHtml(r.error || "")}</span>`
+        : `<span class="funnel">${found} found → ${passedFilters} passed filters → ${r.scored.total} scored (${r.scored.model_calls} new${cost}) → ${r.passed_bar} passed your bar → <strong>${r.kept} kept</strong>${r.waitlisted ? ` + ${r.waitlisted} waitlisted` : ""}</span>`;
+      const sources = Object.keys({ ...r.found, ...r.after_filters }).map((k) =>
+        `<tr><td>${escapeHtml(SOURCE_NAMES[k] || k)}</td><td>${r.found[k] || 0}</td><td>${(r.after_filters || {})[k] || 0}</td></tr>`).join("");
+      const rejected = Object.entries(r.rejected || {}).filter(([, n]) => n).map(([k, n]) =>
+        `<li>${n} ${escapeHtml(REJECT_LABELS[k] || k)}</li>`).join("");
+      return `
+        <details class="run-item">
+          <summary><span class="mono-label">${escapeHtml(r.kind || "run")} · ${timeAgo(r.finished_at || r.started_at)}</span>${head}</summary>
+          <div class="run-detail">
+            <table class="mini-table"><thead><tr><th>Source</th><th>Found</th><th>Passed filters</th></tr></thead><tbody>${sources}</tbody></table>
+            ${rejected ? `<div><span class="mono-label">Filtered out</span><ul>${rejected}</ul></div>` : ""}
+          </div>
+        </details>`;
+    }).join("");
+  } catch (e) {
+    $("#run-history").innerHTML = `<div class="error-msg">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+// ── Advanced: the original per-platform table (custom mode) ──────────────
+// LinkedIn keeps a count PER role ({"value","count"} objects); the others keep
+// one shared count. Any change here switches the settings to custom mode.
+const PER_KEYWORD_COUNT_PLATFORMS = new Set(["linkedin"]);
+
+function switchToCustom() {
+  if (scraperSettingsCache.mode !== "custom") {
+    scraperSettingsCache.mode = "custom";
+    renderDepth();
+  }
+  markDirty();
+}
+
+function renderPlatformConfig() {
+  const enabledValues = (scraperSettingsCache.keywords || []).filter((k) => k.enabled).map((k) => k.value);
+  const platforms = scraperSettingsCache.platforms || {};
+  $("#platform-config-list").innerHTML = Object.keys(PLATFORM_LABELS).map((platform) => {
+    const cfg = platforms[platform] || { keywords: [], count: 20 };
+    const perKeywordCounts = PER_KEYWORD_COUNT_PLATFORMS.has(platform);
+    const selected = new Map((cfg.keywords || []).map((k) =>
+      typeof k === "object" ? [k.value, k.count ?? 15] : [k, cfg.count || 20]));
+    const rows = enabledValues.length
+      ? enabledValues.map((val) => {
+          const on = selected.has(val);
+          const countInput = perKeywordCounts
+            ? `<input type="number" data-platform-keyword-count="${platform}" data-keyword-for-count="${escapeHtml(val)}"
+                 value="${on ? selected.get(val) : 15}" min="1" max="100" style="width:60px;padding:3px 6px;margin-left:8px;" ${on ? "" : "disabled"} />`
+            : "";
+          return `
+          <label class="checkbox-row" style="margin-top:0;justify-content:space-between;">
+            <span style="display:flex;align-items:center;gap:8px;">
+              <input type="checkbox" data-platform="${platform}" data-platform-keyword="${escapeHtml(val)}" ${on ? "checked" : ""} />
+              <span>${escapeHtml(val)}</span>
+            </span>${countInput}
+          </label>`;
+        }).join("")
+      : `<span class="spinner-note">No roles turned on.</span>`;
+    const shared = perKeywordCounts ? "" : `
+          <label style="margin:0;display:flex;align-items:center;gap:6px;">
+            <span class="mono-label">results per role</span>
+            <input type="number" data-platform-count="${platform}" value="${cfg.count || 20}" min="1" max="100" style="width:70px;padding:4px 8px;" />
+          </label>`;
+    return `
+      <div style="border:1px solid var(--hairline);border-radius:6px;padding:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+          <strong class="mono-label">${PLATFORM_LABELS[platform]}</strong>${shared}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-top:8px;">${rows}</div>
+      </div>`;
+  }).join("");
+
+  // Find-or-create a LinkedIn {value,count} entry, upgrading any legacy bare
+  // string for the same role in place (two entries would scrape it twice).
+  function linkedinEntry(cfg, kw) {
+    cfg.keywords = cfg.keywords || [];
+    let entry = cfg.keywords.find((k) => typeof k === "object" && k.value === kw);
+    if (!entry) entry = { value: kw, count: typeof cfg.count === "number" ? cfg.count : 15 };
+    cfg.keywords = cfg.keywords.filter((k) => (typeof k === "object" ? k.value : k) !== kw);
+    cfg.keywords.push(entry);
+    return entry;
+  }
+  const cfgFor = (platform) => scraperSettingsCache.platforms[platform] || (scraperSettingsCache.platforms[platform] = { keywords: [], count: 20 });
+
+  document.querySelectorAll("[data-platform-keyword]").forEach((cb) => cb.addEventListener("change", () => {
+    const platform = cb.dataset.platform, kw = cb.dataset.platformKeyword, cfg = cfgFor(platform);
+    cfg.keywords = cfg.keywords || [];
+    if (PER_KEYWORD_COUNT_PLATFORMS.has(platform)) {
+      if (cb.checked) linkedinEntry(cfg, kw);
+      else cfg.keywords = cfg.keywords.filter((k) => (typeof k === "object" ? k.value : k) !== kw);
+    } else {
+      if (cb.checked && !cfg.keywords.includes(kw)) cfg.keywords.push(kw);
+      if (!cb.checked) cfg.keywords = cfg.keywords.filter((v) => v !== kw);
+    }
+    switchToCustom();
+    renderPlatformConfig();
+  }));
+  document.querySelectorAll("[data-platform-count]").forEach((input) => input.addEventListener("change", () => {
+    cfgFor(input.dataset.platformCount).count = parseInt(input.value, 10) || 20;
+    switchToCustom();
+  }));
+  document.querySelectorAll("[data-platform-keyword-count]").forEach((input) => input.addEventListener("change", () => {
+    linkedinEntry(cfgFor(input.dataset.platformKeywordCount), input.dataset.keywordForCount).count = parseInt(input.value, 10) || 15;
+    switchToCustom();
+  }));
+}
 
 // ── Boot ─────────────────────────────────────────────────────────────────
 // Server constants (current rubric version, min score) — fetched once so the

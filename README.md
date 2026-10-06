@@ -115,7 +115,7 @@ Things written for the maintainer that you should edit for yourself:
   experience, visa status, target level, stack).
 - `engine/graph.py` — the writer/editor prompts describe which technologies are "production" vs
   "project-only" for that profile.
-- `scraper/` settings (Scraper tab) — keywords, location, daily cap and the minimum score.
+- Scraper tab — your roles, location, sources, watched companies, daily cap and minimum score.
 
 ### Optional: LinkedIn session cookie
 LinkedIn scraping works without it but is more limited. If you set `LINKEDIN_COOKIE` (your own
@@ -136,8 +136,11 @@ gitignored.
 Open `http://localhost:8000`, sign in with `APP_PASSWORD`. Paste a company +
 JD, click **Check fit (free)** — this runs only the should-apply gate, costs
 nothing if it's a bad fit. If it passes, **Generate tailored resume** runs the
-full pipeline and gives you download links. A **Scraper** tab triggers one
-scrape cycle on demand; a **History** tab lists past runs.
+full pipeline and gives you download links. The **Scraper** tab asks five plain questions (which roles, where and how
+recent, which sources and how deep, which companies to watch, how many to keep), shows a
+plain-English summary of what the next run will do, and records each run as a funnel
+(found, filtered, scored, kept) so you can see where jobs drop out. The original
+per-platform table is still under Advanced.
 
 ### 2. CLI (`apply.py`) — scriptable, same engine
 

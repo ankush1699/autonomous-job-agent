@@ -141,8 +141,12 @@ def run_scrape_cycle(on_progress=None, on_new_entry=None, overrides=None):
         # bypassing each platform's own saved keyword list/counts for this
         # run only — nothing here is written back to scraper_settings.json.
         kw = overrides["keywords"]
-        platform_keywords = {p: kw for p in ("linkedin", "indeed", "dice", "google_jobs")}
-        platform_counts = {p: _QUICK_SEARCH_RESULTS_PER_PLATFORM for p in ("linkedin", "indeed", "dice", "google_jobs")}
+        # Only sources the user has switched on — a one-off search must not quietly
+        # spend Google Jobs quota or hit Indeed when those are off. An explicit ""
+        # (not a missing key) is what makes fetch_jobs() skip a platform.
+        on = {p: scraper_settings.source_on(p, settings) for p in ("linkedin", "indeed", "dice", "google_jobs")}
+        platform_keywords = {p: (kw if on[p] else "") for p in on}
+        platform_counts = {p: _QUICK_SEARCH_RESULTS_PER_PLATFORM for p in on}
         ats_keywords = kw
     else:
         platform_keywords = {
@@ -161,17 +165,27 @@ def run_scrape_cycle(on_progress=None, on_new_entry=None, overrides=None):
     daily_cap = overrides.get("daily_cap") or settings.get("daily_cap", 25)
     min_score = int(settings.get("min_score") or core_min_score())
 
+    from scraper import run_history, linkedin_companies, ats_companies
+    run = run_history.new_record(
+        kind=overrides.get("run_kind", "scheduled"),
+        mode=settings.get("mode"),
+        depth=settings.get("depth") if settings.get("mode") == "simple" else None,
+        location=location, hours_old=hours_old, daily_cap=daily_cap, min_score=min_score,
+        roles=[r.strip() for r in (overrides.get("keywords") or "").split(",") if r.strip()]
+              or scraper_settings.roles(settings),
+    )
+
     print("\n" + "=" * 60)
     print("SCRAPE CYCLE STARTING")
     print("=" * 60)
     if not any(platform_keywords.values()) and not ats_keywords:
         print("[scheduler] No keywords enabled anywhere in scraper settings — nothing to search for.")
         on_progress(phase="error", phase_detail="No keywords enabled — enable at least one in the Scraper tab.")
+        run_history.finish(run, "error", "No roles enabled")
         return
     on_progress(phase="scraping", phase_detail="Fetching from all configured platforms...")
 
     # 1. Scrape — each platform searches its OWN keyword list/count.
-    from scraper import linkedin_companies
     try:
         raw_jobs = fetch_jobs(
             platform_keywords=platform_keywords,
@@ -180,13 +194,25 @@ def run_scrape_cycle(on_progress=None, on_new_entry=None, overrides=None):
             location=location,
             remote_only=remote_only,
             hours_old=hours_old,
-            linkedin_company_ids=linkedin_companies.company_ids(),
+            linkedin_company_ids=(linkedin_companies.company_ids()
+                                  if scraper_settings.source_on("linkedin_company_pages", settings) else None),
+            include_ats=scraper_settings.source_on("company_boards", settings),
+            linkedin_company_results=scraper_settings.company_pass_results(settings),
         )
     except Exception as e:
         print(f"[scheduler] SCRAPE ERROR: {e}")
         traceback.print_exc()
         on_progress(phase="error", phase_detail=f"Scrape failed: {e}")
+        run_history.finish(run, "error", f"Scrape failed: {e}")
         return
+
+    run["found"] = run_history.count_by_source(raw_jobs)
+    try:
+        watched = [c.get("company", "") for c in ats_companies.load()] + \
+                  [c.get("company", "") for c in linkedin_companies.load()]
+        run["company_found"] = run_history.company_found(raw_jobs, watched)
+    except Exception as e:
+        print(f"[scheduler] company tally failed: {e}")
 
     on_progress(phase="filtering", phase_detail=f"Filtering {len(raw_jobs)} scraped jobs...",
                 jobs_scraped=len(raw_jobs))
@@ -198,12 +224,19 @@ def run_scrape_cycle(on_progress=None, on_new_entry=None, overrides=None):
         print(f"[scheduler] FILTER ERROR: {e}")
         traceback.print_exc()
         on_progress(phase="error", phase_detail=f"Filtering failed: {e}")
+        run_history.finish(run, "error", f"Filtering failed: {e}")
         return
+
+    run["after_filters"] = run_history.count_by_source(accepted)
+    run["rejected"] = dict(sorted(
+        {r: sum(1 for j in rejected if j.get("reject_reason") == r)
+         for r in {j.get("reject_reason") for j in rejected}}.items()))
 
     if not accepted:
         print("[scheduler] No jobs passed filters — cycle done.")
         on_progress(phase="done", phase_detail="No jobs passed filters.",
                     jobs_scraped=len(raw_jobs), jobs_total=0, jobs_scored=0)
+        run_history.finish(run)
         return
 
     print(f"[scheduler] {len(accepted)} jobs to score and rank.")
@@ -217,6 +250,7 @@ def run_scrape_cycle(on_progress=None, on_new_entry=None, overrides=None):
     except Exception as e:
         print(f"[scheduler] Could not load profile cache: {e} — aborting cycle.")
         on_progress(phase="error", phase_detail=f"Could not load profile cache: {e}")
+        run_history.finish(run, "error", f"Could not load profile cache: {e}")
         return
 
     # 4. Score every accepted job. No writing yet — the daily cap needs the
@@ -235,6 +269,7 @@ def run_scrape_cycle(on_progress=None, on_new_entry=None, overrides=None):
         # --- Pre-score JD length filter ---
         if len(job.get("description", "")) < _MIN_JD_LENGTH:
             print(f"  [scheduler] JD too short (<{_MIN_JD_LENGTH} chars) — marking seen and skipping")
+            run["scored"]["skipped_short_jd"] += 1
             if link:
                 try:
                     mark_seen(link)
@@ -254,7 +289,18 @@ def run_scrape_cycle(on_progress=None, on_new_entry=None, overrides=None):
             score_single_job(job, profile)
         except Exception as e:
             print(f"  [scheduler] Scoring failed: {e} — skipping job")
+            run["scored"]["errors"] += 1
             continue
+        run["scored"]["total"] += 1
+        stage = job.get("score_stage")
+        if stage == "llm":
+            run["scored"]["model_calls"] += 1
+        elif stage in ("url_cache", "cache"):
+            run["scored"]["from_cache"] += 1
+        elif stage == "red_flag":
+            run["scored"]["red_flag"] += 1
+        elif stage == "error":
+            run["scored"]["errors"] += 1
 
         # --- Cache + mark seen for EVERY scored job, pass or fail — the
         #     LLM cost is already spent, and a job that misses the cap
@@ -360,6 +406,11 @@ def run_scrape_cycle(on_progress=None, on_new_entry=None, overrides=None):
         f"{written} of {len(scored_candidates)} qualifying jobs kept and added to {destination} "
         f"(daily cap {daily_cap}), {waitlisted} waitlisted, {len(cut) - waitlisted} discarded past the cap."
     )
+    run["passed_bar"] = len(scored_candidates)
+    run["kept"] = written
+    run["waitlisted"] = waitlisted
+    run_history.finish(run)
+
     waitlist_note = f", {waitlisted} waitlisted" if waitlisted else ""
     on_progress(phase="done",
                 phase_detail=f"Done — {written} added to {destination} (top {daily_cap} of "

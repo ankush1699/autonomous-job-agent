@@ -585,6 +585,8 @@ def fetch_jobs(
     remote_only: bool = _DEFAULT_REMOTE,
     hours_old: int = None,
     linkedin_company_ids: list[int] = None,
+    include_ats: bool = True,
+    linkedin_company_results: int = None,
 ) -> list[dict]:
     """
     Scrape jobs from all active platforms and return deduplicated normalized list.
@@ -614,6 +616,11 @@ def fetch_jobs(
     these employers via jobspy's native company filter — guarantees these
     specific companies get checked every cycle instead of relying on them
     happening to surface in the broad keyword search. None/empty skips it.
+    linkedin_company_results: results per keyword for that pass (the Scraper
+    tab's depth preset); None uses LINKEDIN_COMPANY_TARGET_RESULTS (default 10).
+
+    include_ats: False skips the company career-board step entirely (the
+    "company career pages" source switch in the Scraper tab).
 
     Active platforms (in order):
       1. LinkedIn  (jobspy, cookie-authenticated)
@@ -675,9 +682,11 @@ def fetch_jobs(
         for idx_kw, kw in enumerate(li_kw_list):
             try:
                 jobs = _fetch_jobspy_platform(
-                    "linkedin", kw, location, _COMPANY_TARGET_RESULTS, remote_only, seen_links,
-                    hours_old=hours_old, linkedin_company_ids=linkedin_company_ids,
+                    "linkedin", kw, location, linkedin_company_results or _COMPANY_TARGET_RESULTS,
+                    remote_only, seen_links, hours_old=hours_old, linkedin_company_ids=linkedin_company_ids,
                 )
+                for job in jobs:
+                    job["via"] = "linkedin_company_page"   # lets the run funnel credit watched companies
                 print(f"  [scrape] linkedin (company-targeted) '{kw}': {len(jobs)} new jobs")
                 all_jobs.extend(jobs)
             except Exception as e:
@@ -717,17 +726,20 @@ def fetch_jobs(
         print("  [scrape] google_jobs: no keywords enabled — skipping")
 
     # --- ATS boards (Greenhouse/Lever/Ashby/Workday) — curated company list ---
-    try:
-        from scraper.ats_scrape import fetch_ats_jobs
-        ats_jobs = fetch_ats_jobs(ats_keywords if ats_keywords is not None else _DEFAULT_KEYWORDS,
-                                   hours_old=hours_old, location=location)
-        for job in ats_jobs:
-            link = job.get("apply_link", "")
-            if link and link not in seen_links:
-                seen_links.add(link)
-                all_jobs.append(job)
-    except Exception as e:
-        print(f"  [scrape] ATS boards top-level error: {e}")
+    if not include_ats:
+        print("  [scrape] company career pages: switched off — skipping")
+    else:
+        try:
+            from scraper.ats_scrape import fetch_ats_jobs
+            ats_jobs = fetch_ats_jobs(ats_keywords if ats_keywords is not None else _DEFAULT_KEYWORDS,
+                                       hours_old=hours_old, location=location)
+            for job in ats_jobs:
+                link = job.get("apply_link", "")
+                if link and link not in seen_links:
+                    seen_links.add(link)
+                    all_jobs.append(job)
+        except Exception as e:
+            print(f"  [scrape] ATS boards top-level error: {e}")
 
     print(f"  [scrape] Total unique jobs across all platforms: {len(all_jobs)}")
     return all_jobs

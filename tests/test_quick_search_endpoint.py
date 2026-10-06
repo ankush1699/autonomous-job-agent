@@ -46,7 +46,7 @@ def test_valid_request_builds_correct_overrides_and_starts_a_job():
     _, overrides = call_kwargs["args"]
     assert overrides == {
         "location": "Chicago, IL", "hours_old": 24,
-        "keywords": "Backend Engineer", "daily_cap": 5,
+        "keywords": "Backend Engineer", "daily_cap": 5, "run_kind": "one-off",
     }
 
 
@@ -54,4 +54,4 @@ def test_all_fields_optional_omitted_fields_pass_through_as_none():
     with patch.object(server.threading, "Thread") as mock_thread:
         server.trigger_quick_search(server.QuickSearchRequest())
     _, overrides = mock_thread.call_args.kwargs["args"]
-    assert overrides == {"location": None, "hours_old": None, "keywords": None, "daily_cap": 10}
+    assert overrides == {"location": None, "hours_old": None, "keywords": None, "daily_cap": 10, "run_kind": "one-off"}

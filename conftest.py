@@ -22,6 +22,15 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 os.environ.setdefault("ANTHROPIC_API_KEY", "sk-ant-ci-placeholder")
 
 
+@pytest.fixture(autouse=True)
+def _isolate_output_dir(tmp_path, monkeypatch):
+    """Every test gets its own empty OUTPUT_BASE_PATH, so no test can ever read or
+    write the real ~/Documents/Resumes stores (entries, seen jobs, JD cache,
+    scraper settings, run history). Tests that need a specific path still set
+    their own with patch.dict, which takes precedence inside that block."""
+    monkeypatch.setenv("OUTPUT_BASE_PATH", str(tmp_path / "output"))
+
+
 def pytest_configure(config):
     config.addinivalue_line(
         "markers",

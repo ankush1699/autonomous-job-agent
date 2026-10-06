@@ -427,3 +427,79 @@ a.secondary {
 .spinner-note { font-family: var(--font-mono); font-size: 0.78rem; color: var(--ink-muted); margin-top: 12px; }
 
 #api-base-row { margin-bottom: 20px; }
+
+/* ── Scraper tab (Oct 2026 redesign) ─────────────────────────────────────── */
+.plan-card { border-color: var(--ink-deep); }
+.plan-sentence { font-family: var(--font-display); font-size: 1.25rem; line-height: 1.45; color: var(--ink-deep); margin-top: 8px; }
+.plan-meta { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; font-size: 0.85rem; color: var(--ink-muted); }
+.plan-meta span + span::before { content: "·"; margin-right: 16px; color: var(--ink-faint); }
+.plan-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.plan-actions button { margin-top: 16px; }
+.dirty-note { margin-top: 16px; font-family: var(--font-mono); font-size: 0.72rem; color: var(--amber); text-transform: uppercase; letter-spacing: 0.08em; }
+.hint { color: var(--ink-muted); font-size: 0.9rem; margin-top: 6px; }
+.notice { margin-top: 12px; padding: 10px 14px; border-radius: 6px; background: var(--amber-bg); color: var(--ink); font-size: 0.9rem; }
+.q-title { display: flex; align-items: center; gap: 10px; font-size: 1.2rem; }
+.q-num { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%;
+         background: var(--ink-deep); color: var(--paper); font-family: var(--font-mono); font-size: 0.8rem; }
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0 16px; }
+.inline-add { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
+.inline-add input { flex: 1; min-width: 180px; }
+.inline-add button { margin-top: 0; padding: 8px 16px; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.chip { display: inline-flex; align-items: center; border: 1px solid var(--hairline-strong); border-radius: 999px; background: transparent; overflow: hidden; }
+.chip button { margin: 0; border: 0; border-radius: 0; background: transparent; color: var(--ink-muted); padding: 6px 10px; text-transform: none; letter-spacing: 0; font-family: var(--font-text); font-size: 0.9rem; }
+.chip .chip-label { padding-left: 14px; text-decoration: line-through; text-decoration-color: var(--ink-faint); }
+.chip.on { border-color: var(--ink-deep); background: var(--ink-deep); }
+.chip.on button { color: var(--paper); }
+.chip.on .chip-label { text-decoration: none; }
+.chip .chip-star { color: var(--ink-faint); padding: 6px 6px; }
+.chip.on .chip-star { color: rgba(247, 244, 238, 0.35); }          /* dim on a dark chip until starred */
+.chip .chip-star.on, .chip.on .chip-star.on { color: #F2B705; }
+.chip .chip-x { padding-right: 12px; }
+.chip button:hover { background: var(--blue); color: var(--paper); }
+
+.sources { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.source-row { display: flex; gap: 10px; align-items: flex-start; margin: 0; font-family: var(--font-text); font-size: 0.95rem; text-transform: none; letter-spacing: 0; color: var(--ink); }
+.source-row input { width: auto; margin-top: 4px; }
+.source-row strong { font-weight: 600; }
+.source-note { display: block; color: var(--ink-muted); font-size: 0.85rem; }
+
+.seg { display: inline-flex; border: 1px solid var(--ink-deep); border-radius: 999px; overflow: hidden; margin-top: 8px; }
+.seg button { margin: 0; border: 0; border-radius: 0; background: transparent; color: var(--ink-deep); padding: 8px 22px; }
+.seg button + button { border-left: 1px solid var(--ink-deep); }
+.seg button.active { background: var(--ink-deep); color: var(--paper); }
+
+.sentence-control { font-size: 1.05rem; margin-top: 12px; line-height: 2.4; }
+.sentence-control input { display: inline-block; width: 80px; margin: 0 6px; text-align: center; }
+
+.company-list { margin-top: 16px; max-height: 420px; overflow-y: auto; padding-right: 6px; }
+.company-count { margin-bottom: 6px; }
+.company-row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 4px 12px; padding: 8px 0; border-top: 1px solid var(--hairline); }
+.company-main { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-width: 0; }
+.detect-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--hairline); flex-wrap: wrap; }
+.company-name { font-weight: 600; }
+.company-found { color: var(--ink-muted); font-size: 0.85rem; white-space: nowrap; }
+.badge { font-family: var(--font-mono); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; border: 1px solid var(--hairline-strong); border-radius: 999px; padding: 2px 10px; color: var(--ink-muted); }
+.detect-list { margin-top: 12px; }
+.detect-row span { flex: 1; }
+.warn { display: block; color: var(--amber); font-size: 0.8rem; }
+button.small { margin-top: 0; padding: 5px 12px; font-size: 0.7rem; }
+
+.progress { background: var(--hairline); border-radius: 6px; overflow: hidden; height: 8px; margin-top: 8px; }
+.progress div { background: var(--blue); height: 100%; transition: width 0.3s; }
+
+.run-item { border-top: 1px solid var(--hairline); padding: 10px 0; }
+.run-item summary { cursor: pointer; display: flex; flex-direction: column; gap: 2px; list-style: none; }
+.run-item summary::-webkit-details-marker { display: none; }
+.funnel { font-size: 0.92rem; }
+.run-detail { display: flex; flex-wrap: wrap; gap: 24px; margin-top: 10px; font-size: 0.88rem; }
+.run-detail ul { margin: 4px 0 0 18px; }
+.mini-table { border-collapse: collapse; }
+.mini-table th, .mini-table td { text-align: left; padding: 3px 14px 3px 0; border-bottom: 1px solid var(--hairline); }
+.mini-table th { font-family: var(--font-mono); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-muted); font-weight: 500; }
+
+details.advanced summary { cursor: pointer; font-family: var(--font-mono); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; }
+
+/* Scraper tab: long checkbox sentences read better in the text face */
+#tab-scraper .checkbox-row label { font-family: var(--font-text); font-size: 0.95rem; text-transform: none; letter-spacing: 0; color: var(--ink); }

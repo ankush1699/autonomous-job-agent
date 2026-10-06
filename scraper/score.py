@@ -81,6 +81,7 @@ def score_single_job(job: dict, profile: str = None) -> None:
             job["sub_scores"]      = cached.get("sub_scores", {})
             job["tailoring_recommended"] = cached.get("tailoring_recommended", True)
             job["tailoring_reasoning"]   = cached.get("tailoring_reasoning", "")
+            job["score_stage"] = "url_cache"   # free: no model call (read by the run funnel)
             print(
                 f"  [score] CACHE HIT {job.get('company','?')} — "
                 f"{job.get('title','?')}: {job['score']}/100"
@@ -101,6 +102,8 @@ def score_single_job(job: dict, profile: str = None) -> None:
         job["tailoring_recommended"] = result.get("tailoring_recommended", True)
         job["tailoring_reasoning"]   = result.get("tailoring_reasoning", "")
         job["rubric_version"]        = result.get("rubric_version")
+        # "llm" = a real (paid) model call; "cache" = core.jd_cache hit; "red_flag" = free regex reject
+        job["score_stage"]           = result.get("stage", "llm")
         sub = job["sub_scores"]
         print(
             f"  [score] {job.get('company','?')} — {job.get('title','?')}: {job['score']}/100 "
@@ -129,6 +132,7 @@ def score_single_job(job: dict, profile: str = None) -> None:
         job["tailoring_recommended"] = True
         job["tailoring_reasoning"] = ""
         job["rubric_version"] = None
+        job["score_stage"] = "error"
 
 
 def score_jobs(jobs: list[dict]) -> list[dict]:

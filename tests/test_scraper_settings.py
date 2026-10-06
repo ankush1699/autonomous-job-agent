@@ -18,6 +18,27 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from scraper import scraper_settings
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _custom_mode_defaults(monkeypatch):
+    """Everything in this module tests the per-platform table, which since the
+    Oct 2026 redesign is "custom" mode (a fresh install now starts in "simple"
+    mode — see tests/test_scraper_simple_mode.py). Pin the fresh-install defaults
+    to custom mode with every source on so these assertions keep testing exactly
+    what they were written for."""
+    original = scraper_settings._env_defaults
+
+    def custom_defaults():
+        d = original()
+        d["mode"] = "custom"
+        d["sources"] = {k: True for k in scraper_settings.SOURCES}
+        return d
+
+    monkeypatch.setattr(scraper_settings, "_env_defaults", custom_defaults)
+
+
 
 def _isolated_output_dir():
     return patch.dict(os.environ, {"OUTPUT_BASE_PATH": tempfile.mkdtemp()})

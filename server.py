@@ -698,7 +698,7 @@ def trigger_scrape():
         "jobs_scraped": None, "jobs_total": None, "jobs_scored": 0,
         "high_match_count": 0, "sheet_written": 0,
     }
-    thread = threading.Thread(target=_run_scrape_cycle, args=(job_id,), daemon=True)
+    thread = threading.Thread(target=_run_scrape_cycle, args=(job_id, {"run_kind": "manual"}), daemon=True)
     thread.start()
     return {"job_id": job_id, "status": "running"}
 
@@ -744,7 +744,7 @@ def trigger_quick_search(req: QuickSearchRequest):
         raise HTTPException(422, "top_n must be between 1 and 50.")
     overrides = {
         "location": req.location, "hours_old": req.hours_old,
-        "keywords": req.keywords, "daily_cap": req.top_n,
+        "keywords": req.keywords, "daily_cap": req.top_n, "run_kind": "one-off",
     }
     job_id = uuid.uuid4().hex[:12]
     SCRAPE_RUNS[job_id] = {
@@ -888,8 +888,13 @@ def delete_linkedin_company(company: str):
 # on every cycle, so a change here applies next run, no restart needed.
 # ---------------------------------------------------------------------------
 class ScraperSettingsRequest(BaseModel):
-    keywords: list[dict]
-    platforms: dict  # {"linkedin": {"keywords": [...], "count": N}, "indeed": {...}, ...}
+    keywords: list[dict]          # [{"value", "enabled", "focus"?}, ...]
+    # Custom-mode per-platform table. Optional: the simple-mode UI may not send
+    # it, and an omitted table must keep the saved one (not reset to defaults).
+    platforms: dict | None = None
+    mode: str | None = None       # "simple" | "custom"
+    depth: str | None = None      # "light" | "normal" | "deep"
+    sources: dict | None = None   # {"linkedin": bool, ..., "company_boards": bool, "linkedin_company_pages": bool}
     location: str
     remote_only: bool
     hours_old: int
@@ -924,10 +929,112 @@ def get_scraper_settings():
 def update_scraper_settings(req: ScraperSettingsRequest):
     from scraper import scraper_settings
     settings = req.model_dump(exclude_none=True)  # an omitted min_score keeps the env default
-    if "min_score" in settings and not (0 <= settings["min_score"] <= 100):
-        raise HTTPException(status_code=422, detail="min_score must be between 0 and 100")
+    error = scraper_settings.validate(settings)
+    if error:
+        raise HTTPException(status_code=422, detail=error)
+    current = scraper_settings.load()
+    for key in ("platforms", "mode", "depth", "sources"):
+        settings.setdefault(key, current.get(key))
     scraper_settings.save(settings)
     return scraper_settings.load()  # merged over defaults, so the client sees every key
+
+
+# ---------------------------------------------------------------------------
+# Scraper tab redesign (Oct 2026): plain-English plan, run funnel history, and
+# ONE watched-companies list (company boards + LinkedIn company pages) added by
+# name. The old /api/ats-companies and /api/linkedin-companies endpoints stay
+# for compatibility; these read and write the same two stores.
+# ---------------------------------------------------------------------------
+@app.get("/api/scraper/plan", dependencies=[Depends(require_auth)])
+def get_scraper_plan():
+    from scraper import scraper_settings, ats_companies, linkedin_companies, run_history
+    plan = scraper_settings.describe_plan(
+        scraper_settings.load(),
+        n_company_boards=len(ats_companies.load()),
+        n_linkedin_pages=len(linkedin_companies.load()),
+    )
+    plan["last_run"] = run_history.last()
+    return plan
+
+
+@app.get("/api/scrape-history", dependencies=[Depends(require_auth)])
+def get_scrape_history(limit: int = 5):
+    from scraper import run_history
+    return list(reversed(run_history.load()))[: max(1, min(limit, 30))]
+
+
+_ATS_SOURCES = {"greenhouse", "lever", "ashby", "workday"}
+
+
+def _watched_companies() -> list[dict]:
+    from scraper import ats_companies, linkedin_companies, run_history
+    last = run_history.last() or {}
+    found = last.get("company_found") or {}
+    rows = [{"company": c["company"], "source": c["ats"], "identifier": c["identifier"],
+             "found_last_run": found.get(c["company"])} for c in ats_companies.load()]
+    rows += [{"company": c["company"], "source": "linkedin", "identifier": c["linkedin_id"],
+              "found_last_run": found.get(c["company"])} for c in linkedin_companies.load()]
+    return sorted(rows, key=lambda r: r["company"].lower())
+
+
+class DetectCompanyRequest(BaseModel):
+    name: str
+    url: str | None = None
+
+
+class WatchCompanyRequest(BaseModel):
+    company: str
+    source: str          # greenhouse | lever | ashby | workday | linkedin
+    identifier: str | int
+
+
+@app.get("/api/target-companies", dependencies=[Depends(require_auth)])
+def list_target_companies():
+    return _watched_companies()
+
+
+@app.post("/api/target-companies/detect", dependencies=[Depends(require_auth)])
+def detect_target_company(req: DetectCompanyRequest):
+    from scraper import company_resolver
+    if not req.name.strip() and not (req.url or "").strip():
+        raise HTTPException(400, "Type a company name (or paste its careers / LinkedIn page URL).")
+    return {"candidates": company_resolver.detect(req.name.strip(), (req.url or "").strip() or None)}
+
+
+@app.post("/api/target-companies", dependencies=[Depends(require_auth)])
+def add_target_company(req: WatchCompanyRequest):
+    from scraper import ats_companies, linkedin_companies
+    name = req.company.strip()
+    if req.source in _ATS_SOURCES:
+        error = ats_companies.validate(name, req.source, str(req.identifier))
+        if error:
+            raise HTTPException(400, error)
+        rows = [c for c in ats_companies.load() if c.get("company", "").lower() != name.lower()]
+        rows.append({"company": name, "ats": req.source, "identifier": str(req.identifier).strip()})
+        ats_companies.save(rows)
+    elif req.source == "linkedin":
+        error = linkedin_companies.validate(name, req.identifier)
+        if error:
+            raise HTTPException(400, error)
+        rows = [c for c in linkedin_companies.load() if c.get("company", "").lower() != name.lower()]
+        rows.append({"company": name, "linkedin_id": int(req.identifier)})
+        linkedin_companies.save(rows)
+    else:
+        raise HTTPException(400, "source must be one of greenhouse, lever, ashby, workday, linkedin")
+    return _watched_companies()
+
+
+@app.delete("/api/target-companies/{source}/{company}", dependencies=[Depends(require_auth)])
+def remove_target_company(source: str, company: str):
+    from scraper import ats_companies, linkedin_companies
+    store = linkedin_companies if source == "linkedin" else ats_companies
+    rows = store.load()
+    remaining = [c for c in rows if c.get("company", "").lower() != company.strip().lower()
+                 or (store is ats_companies and c.get("ats") != source)]
+    if len(remaining) == len(rows):
+        raise HTTPException(404, "Not in your watched companies.")
+    store.save(remaining)
+    return _watched_companies()
 
 
 # ---------------------------------------------------------------------------

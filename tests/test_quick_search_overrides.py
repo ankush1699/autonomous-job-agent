@@ -24,7 +24,7 @@ def _job(i, score=90):
             "description": "x" * 300, "platform": "linkedin"}
 
 
-def _run_with_overrides(overrides, scores=(90,)):
+def _run_with_overrides(overrides, scores=(90,), sources=None):
     raw_jobs = [_job(i) for i in range(len(scores))]
     score_iter = iter(scores)
 
@@ -41,6 +41,7 @@ def _run_with_overrides(overrides, scores=(90,)):
          patch.object(scheduler.scraper_settings, "load", return_value={
              **scheduler.scraper_settings._env_defaults(), "location": "United States",
              "hours_old": 96, "daily_cap": 25,
+             **({"sources": sources} if sources is not None else {}),
          }), \
          patch.object(scheduler.scraper_settings, "save") as mock_save, \
          patch.object(scheduler, "mark_seen"), patch.object(scheduler, "save_job_to_cache"), \
@@ -62,8 +63,9 @@ def test_location_and_hours_old_overrides_reach_fetch_jobs():
     assert call_kwargs["hours_old"] == 24
 
 
-def test_keywords_override_applies_to_every_platform_and_ats():
-    _, mock_fetch, _ = _run_with_overrides({"keywords": "Backend Engineer"})
+def test_keywords_override_applies_to_every_switched_on_platform_and_ats():
+    all_on = {k: True for k in scheduler.scraper_settings.SOURCES}
+    _, mock_fetch, _ = _run_with_overrides({"keywords": "Backend Engineer"}, sources=all_on)
     call_kwargs = mock_fetch.call_args.kwargs
     assert call_kwargs["ats_keywords"] == "Backend Engineer"
     for platform in ("linkedin", "indeed", "dice", "google_jobs"):
@@ -104,3 +106,16 @@ def test_omitted_overrides_param_defaults_to_no_op():
          }):
         scheduler.run_scrape_cycle(on_new_entry=lambda j: None)
     assert mock_fetch.call_args.kwargs["location"] == "United States"
+
+
+def test_quick_search_skips_platforms_the_user_switched_off():
+    """Oct 2026 redesign: a one-off search must not spend Google Jobs quota (or hit
+    Indeed) when those sources are switched off in the Scraper tab. An explicit ""
+    is what makes fetch_jobs() skip a platform (a missing key would fall back to
+    the env default keyword list)."""
+    sources = {k: True for k in scheduler.scraper_settings.SOURCES}
+    sources.update(google_jobs=False, indeed=False)
+    _, mock_fetch, _ = _run_with_overrides({"keywords": "Backend Engineer"}, sources=sources)
+    pk = mock_fetch.call_args.kwargs["platform_keywords"]
+    assert pk["google_jobs"] == "" and pk["indeed"] == ""
+    assert pk["linkedin"] == "Backend Engineer" and pk["dice"] == "Backend Engineer"

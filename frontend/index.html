@@ -130,137 +130,143 @@
 
     <!-- Scraper tab -->
     <div id="tab-scraper" class="tab-panel hidden">
-      <div class="card">
-        <p>Runs one scrape → filter → score cycle using the config below (SerpApi/jobspy/Dice RSS/ATS boards).
-        Scored jobs land directly in the Applications tab, same as anything you add manually.</p>
-        <button id="scrape-btn">Run scrape cycle now</button>
+
+      <!-- Plan banner: what the next run will do, in plain words -->
+      <div class="card plan-card">
+        <span class="mono-label">The next run will</span>
+        <p id="plan-sentence" class="plan-sentence">Loading your search settings&hellip;</p>
+        <div id="plan-meta" class="plan-meta"></div>
+        <div class="plan-actions">
+          <button id="scrape-btn">Run now</button>
+          <button class="secondary" id="oneoff-open-btn">Search once elsewhere&hellip;</button>
+          <span class="toolbar-spacer"></span>
+          <span id="settings-dirty" class="dirty-note hidden">Unsaved changes</span>
+          <button class="secondary" id="scraper-settings-save-btn">Save settings</button>
+        </div>
         <div id="scrape-status"></div>
+        <div id="scraper-settings-status"></div>
       </div>
 
-      <div class="card">
-        <div class="run-row" style="border-top:none;">
-          <span class="mono-label">Quick search</span>
-        </div>
-        <p style="margin-top:0;">A one-off search &mdash; e.g. "Chicago jobs posted in the last 24 hours" &mdash;
-        that does NOT touch your saved Search settings below. Any field left blank falls back to your saved
-        setting. Results are scored and ranked by the same rubric as everything else, top matches land in
-        Applications like any other scored job.</p>
-        <div style="display:flex;gap:16px;flex-wrap:wrap;">
+      <!-- One-off search: same questions, pre-filled, never saved -->
+      <div class="card hidden" id="oneoff-card">
+        <span class="mono-label">Search once elsewhere</span>
+        <p class="hint">Runs one search with these values and does not change your saved settings. Results are scored
+        and ranked the same way and land in Applications.</p>
+        <div class="grid-2">
           <div>
             <label for="quick-search-location">Location</label>
-            <input type="text" id="quick-search-location" placeholder="e.g. Chicago, IL (blank = saved default)" style="width:220px;" />
+            <input type="text" id="quick-search-location" placeholder="e.g. Chicago, IL" />
           </div>
           <div>
-            <label for="quick-search-hours-old">Posted within (hours)</label>
-            <input type="number" id="quick-search-hours-old" min="1" max="720" placeholder="blank = saved default" style="width:160px;" />
+            <label for="quick-search-posted">Posted within</label>
+            <select id="quick-search-posted"></select>
           </div>
           <div>
-            <label for="quick-search-keywords">Title / keywords</label>
-            <input type="text" id="quick-search-keywords" placeholder="e.g. Software Engineer (blank = saved keywords)" style="width:260px;" />
+            <label for="quick-search-keywords">Roles (comma separated)</label>
+            <input type="text" id="quick-search-keywords" placeholder="e.g. Software Engineer, AI Engineer" />
           </div>
           <div>
-            <label for="quick-search-top-n">Top N</label>
-            <input type="number" id="quick-search-top-n" min="1" max="50" value="10" style="width:80px;" />
+            <label for="quick-search-top-n">Show me the best</label>
+            <input type="number" id="quick-search-top-n" min="1" max="50" value="10" />
           </div>
         </div>
-        <button id="quick-search-btn" style="margin-top:12px;">Search now</button>
+        <div class="plan-actions">
+          <button id="quick-search-btn">Search now</button>
+          <button class="secondary" id="oneoff-close-btn">Close</button>
+        </div>
         <div id="quick-search-status"></div>
       </div>
 
+      <!-- 1. What jobs? -->
       <div class="card">
-        <div class="run-row" style="border-top:none;">
-          <span class="mono-label">Search settings</span>
-          <button class="secondary" id="scraper-settings-save-btn" style="margin-top:0;padding:6px 12px;">Save</button>
+        <h3 class="q-title"><span class="q-num">1</span>What jobs?</h3>
+        <p class="hint">Click a role to turn it on or off. The star searches that role deeper.</p>
+        <div id="role-chips" class="chips"></div>
+        <div class="inline-add">
+          <input type="text" id="keyword-add-input" placeholder="Add a role, e.g. Platform Engineer" />
+          <button class="secondary" id="keyword-add-btn">Add</button>
         </div>
-        <div id="scraper-settings-status"></div>
-
-        <label style="margin-top:16px;">Keyword pool — check to enable, uncheck to disable everywhere</label>
-        <div id="keyword-checkbox-list" style="display:flex;flex-direction:column;gap:6px;margin-top:8px;"></div>
-        <div style="display:flex;gap:8px;margin-top:8px;align-items:center;">
-          <input type="text" id="keyword-add-input" placeholder="Add a keyword..." style="padding:6px 10px;flex:1;" />
-          <button class="secondary" id="keyword-add-btn" style="margin-top:0;padding:6px 12px;">Add</button>
-        </div>
-
-        <label style="margin-top:20px;">Per-platform keywords &amp; count — each platform searches its own subset at its own depth (SerpApi/Google Jobs has a hard 100/month free quota — one unit per keyword per cycle regardless of count — so keep that one short; Dice is free with no quota risk, so it can go deep)</label>
-        <div id="platform-config-list" style="display:flex;flex-direction:column;gap:16px;margin-top:10px;"></div>
-
-        <label for="scraper-location" style="margin-top:20px;">Location</label>
-        <input type="text" id="scraper-location" placeholder="United States" />
-
-        <div class="checkbox-row" style="margin-top:12px;">
-          <input type="checkbox" id="scraper-remote-only" />
-          <label for="scraper-remote-only">Remote only</label>
-        </div>
-        <div class="checkbox-row" style="margin-top:8px;">
+        <div class="checkbox-row">
           <input type="checkbox" id="scraper-entry-level-only" />
-          <label for="scraper-entry-level-only">Entry-level only (rejects Senior/Staff/Lead/Manager/Director/etc. titles)</label>
+          <label for="scraper-entry-level-only">Entry-level only (skip Senior, Staff, Lead, Manager titles)</label>
         </div>
         <div class="checkbox-row" style="margin-top:8px;">
           <input type="checkbox" id="scraper-exclude-agencies" />
-          <label for="scraper-exclude-agencies">Exclude recruiting agencies (see blocklist in scraper/agency_blocklist.py)</label>
+          <label for="scraper-exclude-agencies">Skip recruiting agencies</label>
         </div>
-
-        <div style="display:flex;gap:16px;margin-top:16px;flex-wrap:wrap;">
-          <div>
-            <label for="scraper-hours-old">Posted within (hours)</label>
-            <input type="number" id="scraper-hours-old" min="1" max="720" style="width:100px;" />
-          </div>
-          <div>
-            <label for="scraper-daily-cap">Daily cap (top-N kept per cycle)</label>
-            <input type="number" id="scraper-daily-cap" min="1" max="200" style="width:100px;" />
-          </div>
-          <div>
-            <label for="scraper-min-score">Min score (the apply bar, 0-100)</label>
-            <input type="number" id="scraper-min-score" min="0" max="100" style="width:100px;" />
-          </div>
-        </div>
-        <p style="margin-top:8px;">Min score is the one threshold everything uses: a scored job at or above it counts as a
-        match here, gets the green "proceed" verdict in Applications, and is what the pipeline's own gate checks.
-        Every job that clears the score bar gets ranked (direct-to-company ATS applications
-        and confirmed H-1B sponsorship history break ties, since those correlate with actually hearing back) — only the
-        top N show up in Applications; the rest that cleared the bar are kept as a hidden waitlist (toolbar → "Show waitlist"),
-        not discarded. Everything scored is marked seen so it's never re-scraped or re-billed.</p>
       </div>
 
+      <!-- 2. Where and how recent? -->
       <div class="card">
-        <div class="run-row" style="border-top:none;">
-          <span class="mono-label">ATS target companies</span>
+        <h3 class="q-title"><span class="q-num">2</span>Where and how recent?</h3>
+        <div class="grid-2">
+          <div>
+            <label for="scraper-location">Location</label>
+            <input type="text" id="scraper-location" placeholder="United States" />
+          </div>
+          <div>
+            <label for="scraper-posted">Posted within</label>
+            <select id="scraper-posted"></select>
+          </div>
         </div>
-        <p style="margin-top:0;">Greenhouse/Lever/Ashby/Workday don't support global keyword search like LinkedIn/Indeed —
-        each board is checked per-company. Add companies you want covered directly; this is the source most likely to
-        surface postings that never get syndicated to any job board.</p>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-          <input type="text" id="ats-company-name" placeholder="Company name" style="padding:6px 10px;width:160px;" />
-          <select id="ats-company-type">
-            <option value="greenhouse">Greenhouse</option>
-            <option value="lever">Lever</option>
-            <option value="ashby">Ashby</option>
-            <option value="workday">Workday</option>
-          </select>
-          <input type="text" id="ats-company-identifier" placeholder="board token (or full careers URL for Workday)" style="padding:6px 10px;flex:1;min-width:220px;" />
-          <button class="secondary" id="ats-company-add-btn" style="margin-top:0;padding:6px 12px;">Add</button>
+        <div class="checkbox-row">
+          <input type="checkbox" id="scraper-remote-only" />
+          <label for="scraper-remote-only">Remote only</label>
         </div>
-        <div id="ats-company-status"></div>
-        <div id="ats-company-list" style="margin-top:8px;"></div>
       </div>
 
+      <!-- 3. Where to look? -->
       <div class="card">
-        <div class="run-row" style="border-top:none;">
-          <span class="mono-label">LinkedIn target companies</span>
+        <h3 class="q-title"><span class="q-num">3</span>Where to look?</h3>
+        <div id="source-list" class="sources"></div>
+        <label style="margin-top:24px;">How deep to search</label>
+        <div id="depth-seg" class="seg" role="group" aria-label="Search depth">
+          <button type="button" data-depth="light">Light</button>
+          <button type="button" data-depth="normal">Normal</button>
+          <button type="button" data-depth="deep">Deep</button>
         </div>
-        <p style="margin-top:0;">For employers that don't run any Greenhouse/Lever/Ashby/Workday board at all — Amazon,
-        Microsoft, Google, Meta, etc. — so they can never go in the ATS list above. Each one you add here runs one extra
-        LinkedIn search per keyword every cycle, scoped to just that company, using your existing logged-in LinkedIn
-        cookie. Find a company's numeric id in its public LinkedIn page source (look for <code>urn:li:organization:&lt;id&gt;</code>) —
-        it's not the URL slug.</p>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-          <input type="text" id="li-company-name" placeholder="Company name" style="padding:6px 10px;width:160px;" />
-          <input type="number" id="li-company-id" placeholder="LinkedIn numeric id" style="padding:6px 10px;width:180px;" />
-          <button class="secondary" id="li-company-add-btn" style="margin-top:0;padding:6px 12px;">Add</button>
-        </div>
-        <div id="li-company-status"></div>
-        <div id="li-company-list" style="margin-top:8px;"></div>
+        <p id="depth-explain" class="hint"></p>
+        <div id="custom-mode-note" class="notice hidden">You are using a custom per-platform setup (Advanced, at the bottom).
+        Pick a depth above to switch back to the simple presets.</div>
       </div>
+
+      <!-- 4. Companies to watch -->
+      <div class="card">
+        <h3 class="q-title"><span class="q-num">4</span>Companies to watch</h3>
+        <p class="hint">Type a company name and press Find. It checks the company's own careers page first
+        (Greenhouse, Lever, Ashby), then its LinkedIn page, and you confirm the match. For Workday sites, paste the careers URL.</p>
+        <div class="inline-add">
+          <input type="text" id="company-name-input" placeholder="Company name, e.g. Stripe" />
+          <input type="text" id="company-url-input" placeholder="Careers or LinkedIn URL (optional)" />
+          <button class="secondary" id="company-detect-btn">Find</button>
+        </div>
+        <div id="company-detect-results"></div>
+        <div id="company-list" class="company-list"></div>
+      </div>
+
+      <!-- 5. What to keep? -->
+      <div class="card">
+        <h3 class="q-title"><span class="q-num">5</span>What to keep?</h3>
+        <p class="sentence-control">Show me the best
+          <input type="number" id="scraper-daily-cap" min="1" max="200" /> jobs scoring at least
+          <input type="number" id="scraper-min-score" min="0" max="100" /> out of 100.</p>
+        <p class="hint">Jobs that pass but miss the cut go to the waitlist (Applications, then Show waitlist). Every scored
+        job is remembered, so it is never scored or paid for twice.</p>
+      </div>
+
+      <!-- Last runs -->
+      <div class="card">
+        <h3 class="q-title">Last runs</h3>
+        <div id="run-history"><div class="spinner-note">No runs recorded yet.</div></div>
+      </div>
+
+      <!-- Advanced -->
+      <details class="card advanced">
+        <summary>Advanced: per-platform roles and counts</summary>
+        <p class="hint">The original per-platform table. Changing anything here switches you to custom mode, where these
+        numbers are used instead of the depth presets.</p>
+        <div id="platform-config-list" style="display:flex;flex-direction:column;gap:16px;margin-top:10px;"></div>
+      </details>
     </div>
   </div>
 
