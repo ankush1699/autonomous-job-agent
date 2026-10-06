@@ -1,0 +1,429 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --paper: #F7F4EE;
+  --paper-raised: #FFFDF8;
+  --ink: #1B1915;
+  --ink-deep: #0F0E0B;
+  --ink-muted: #6E6A5F;
+  --ink-faint: #A29D8F;
+  --hairline: #DCD6C8;
+  --hairline-strong: #B8B2A2;
+  --blue: #2733E8;
+  --blue-deep: #1B25B8;
+  --green: #3D7A3D;
+  --red: #B3402E;
+  --amber: #A66A00;
+  --amber-bg: #FBEFDA;
+  --green-bg: #EAF3EA;
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-text: 'Inter', -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', Menlo, monospace;
+}
+
+body {
+  font-family: var(--font-text);
+  background: var(--paper);
+  color: var(--ink);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+h1, h2, h3 { font-family: var(--font-display); font-weight: 500; color: var(--ink-deep); }
+
+.mono-label {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+#login-screen {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 64px 24px;
+}
+
+#app {
+  width: 90%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 64px 24px;
+}
+
+.hidden { display: none !important; }
+
+.card {
+  background: var(--paper-raised);
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  padding: 28px;
+  margin-bottom: 24px;
+}
+
+label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  margin-bottom: 6px;
+  margin-top: 16px;
+}
+
+label:first-child { margin-top: 0; }
+
+input[type="text"], input[type="password"], input[type="url"], input[type="email"],
+input[type="number"], input[type="date"], textarea {
+  width: 100%;
+  font-family: var(--font-text);
+  font-size: 0.95rem;
+  padding: 10px 12px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+textarea { min-height: 200px; resize: vertical; }
+
+input:focus, textarea:focus { outline: none; border-color: var(--blue); }
+
+select {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.03em;
+  padding: 7px 10px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+}
+select:focus { outline: none; border-color: var(--blue); }
+
+.checkbox-row { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
+.checkbox-row input { width: auto; }
+.checkbox-row label { margin: 0; }
+
+/* Applications toolbar — two rows: primary filters (search/date) you touch
+   constantly, secondary row (sort/toggles/actions) below it. Everything
+   here overrides the global input[type=...] { width: 100% } rule (meant for
+   the Add-JD form's stacked fields) with explicit widths — that mismatch
+   was what made the date field stretch to fill the entire row. */
+.toolbar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 14px;
+}
+.toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.toolbar-row + .toolbar-row { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--hairline); }
+.toolbar-search {
+  flex: 1 1 240px;
+  width: auto !important;
+  padding: 9px 12px !important;
+}
+.toolbar-date {
+  flex: 0 0 auto;
+  width: 168px !important;
+  padding: 9px 12px !important;
+  cursor: pointer;
+}
+.toolbar-row select {
+  padding: 9px 12px;
+  font-size: 0.85rem;
+}
+.toggle-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.03em;
+  color: var(--ink-muted);
+  padding: 8px 12px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px;
+  cursor: pointer;
+  user-select: none;
+}
+.toggle-pill:has(input:checked) {
+  background: var(--ink-deep);
+  color: var(--paper);
+  border-color: var(--ink-deep);
+}
+.toggle-pill input { width: auto; margin: 0; }
+.toolbar-spacer { flex: 1; }
+
+button {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 11px 22px;
+  border: 1px solid var(--ink-deep);
+  border-radius: 999px;
+  background: var(--ink-deep);
+  color: var(--paper);
+  cursor: pointer;
+  margin-top: 20px;
+}
+
+button:hover { background: var(--blue); border-color: var(--blue); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* a.secondary reuses the exact same pill-button look as button.secondary —
+   used for the Apply Link, which needs to be a real button (not a plain
+   text link) without actually being a <button> (it's a navigation, not an
+   action). */
+a.secondary, button.secondary { background: transparent; color: var(--ink-deep); }
+a.secondary:hover, button.secondary:hover { background: var(--ink-deep); color: var(--paper); }
+button.secondary.applied { background: var(--green); border-color: var(--green); color: var(--paper); }
+button.secondary.applied:hover { background: var(--red); border-color: var(--red); }
+button.secondary.not-applying:hover { background: var(--amber); border-color: var(--amber); color: var(--paper); }
+button.secondary.not-applying.active { background: var(--red); border-color: var(--red); color: var(--paper); }
+button.secondary.not-applying.active:hover { background: var(--ink-deep); border-color: var(--ink-deep); }
+button.secondary.danger { border-color: var(--hairline-strong); color: var(--ink-muted); }
+button.secondary.danger:hover { background: var(--red); border-color: var(--red); color: var(--paper); }
+
+a.secondary {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 11px 22px;
+  border: 1px solid var(--ink-deep);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.tabs { display: flex; gap: 4px; margin-bottom: 24px; border-bottom: 1px solid var(--hairline); }
+.tab {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 10px 16px;
+  cursor: pointer;
+  color: var(--ink-muted);
+  border-bottom: 2px solid transparent;
+}
+.tab.active { color: var(--ink-deep); border-bottom-color: var(--blue); }
+
+.verdict {
+  margin-top: 20px;
+  padding: 16px;
+  border-radius: 4px;
+  border: 1px solid var(--hairline-strong);
+}
+.verdict.pass { border-color: var(--green); }
+.verdict.fail { border-color: var(--red); }
+.verdict-score { font-family: var(--font-display); font-size: 2rem; }
+.verdict-score.pass { color: var(--green); }
+.verdict-score.fail { color: var(--red); }
+.verdict-reason { font-size: 0.9rem; color: var(--ink-muted); margin-top: 6px; }
+
+.run-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 0;
+  border-top: 1px solid var(--hairline);
+  font-size: 0.9rem;
+}
+.run-row:first-child { border-top: none; }
+.run-row.applied-row {
+  background: color-mix(in srgb, var(--green) 8%, transparent);
+  border-left: 3px solid var(--green);
+  padding-left: 12px;
+  margin-left: -12px;
+}
+
+/* Applications-tab entry card — distinct visual sections (header, score,
+   summary, generated output, actions, delete) so each kind of information
+   has its own clearly bounded place instead of one flowing paragraph. */
+.entry-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 0;
+  border-top: 1px solid var(--hairline);
+}
+.entry-card:first-child { border-top: none; }
+.entry-card.applied-row {
+  background: color-mix(in srgb, var(--green) 7%, transparent);
+  border-left: 3px solid var(--green);
+  padding-left: 14px;
+  margin-left: -14px;
+}
+.entry-card.not-applying-row {
+  background: color-mix(in srgb, var(--red) 6%, transparent);
+  border-left: 3px solid var(--red);
+  padding-left: 14px;
+  margin-left: -14px;
+  opacity: 0.75;
+}
+/* Waitlist: cleared the score bar, missed that cycle's daily cap. */
+.entry-card.cap-missed-row {
+  border-left: 3px dashed var(--amber);
+  padding-left: 14px;
+  margin-left: -14px;
+}
+.cap-missed-badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.06em;
+  color: var(--amber);
+  background: var(--amber-bg);
+  border: 1px dashed var(--amber);
+  border-radius: 4px;
+  padding: 2px 6px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.entry-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.entry-company {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--ink-deep);
+  line-height: 1.3;
+}
+.entry-jobtitle { font-size: 0.95rem; color: var(--ink-muted); margin-top: 2px; }
+.entry-meta {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.entry-score { text-align: right; flex-shrink: 0; }
+.entry-summary { font-size: 0.9rem; color: var(--ink-muted); line-height: 1.55; }
+.entry-generated { }
+.entry-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.entry-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 8px;
+  border-top: 1px dashed var(--hairline);
+}
+.applied-badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.06em;
+  color: var(--paper);
+  background: var(--green);
+  border-radius: 4px;
+  padding: 2px 6px;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+.not-applying-badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.06em;
+  color: var(--paper);
+  background: var(--red);
+  border-radius: 4px;
+  padding: 2px 6px;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+.duplicate-warning {
+  color: var(--amber);
+  background: var(--amber-bg);
+  border: 1px solid var(--amber);
+  border-radius: 4px;
+  font-size: 0.82rem;
+  padding: 8px 10px;
+  margin-top: 10px;
+}
+.stale-rubric {
+  color: var(--amber);
+  background: var(--amber-bg);
+  border: 1px dashed var(--amber);
+  border-radius: 4px;
+  font-size: 0.8rem;
+  padding: 6px 10px;
+  margin-top: 8px;
+}
+.tailoring-hint {
+  border-radius: 4px;
+  font-size: 0.82rem;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  width: 100%;
+  border: 1px solid;
+}
+.tailoring-hint.tailoring-skip {
+  color: var(--green);
+  background: var(--green-bg);
+  border-color: var(--green);
+}
+.tailoring-hint.tailoring-needed {
+  color: var(--amber);
+  background: var(--amber-bg);
+  border-color: var(--amber);
+}
+.jd-panel {
+  white-space: pre-wrap;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--ink-muted);
+  background: var(--paper-raised);
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  padding: 12px;
+  max-height: 320px;
+  overflow-y: auto;
+  margin-top: 4px;
+}
+.run-status {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--hairline-strong);
+}
+.run-status.completed { color: var(--green); border-color: var(--green); }
+.run-status.error { color: var(--red); border-color: var(--red); }
+.run-status.running { color: var(--blue); border-color: var(--blue); }
+
+.run-links a {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--blue);
+  text-decoration: none;
+  margin-left: 12px;
+}
+
+.error-msg { color: var(--red); font-size: 0.85rem; margin-top: 10px; }
+.spinner-note { font-family: var(--font-mono); font-size: 0.78rem; color: var(--ink-muted); margin-top: 12px; }
+
+#api-base-row { margin-bottom: 20px; }

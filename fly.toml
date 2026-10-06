@@ -1,0 +1,25 @@
+# Fly.io app config. Deploy with: fly launch (first time) / fly deploy (updates)
+# Set secrets before first deploy:
+#   fly secrets set ANTHROPIC_API_KEY=... APP_PASSWORD=... GROQ_API_KEY=... SERPAPI_KEY=...
+app = "resume-agent"          # fly launch will prompt to change this if taken
+primary_region = "ord"        # Chicago — closest region to you
+
+[build]
+
+[env]
+  PORT = "8000"
+
+[[mounts]]
+  source = "resume_agent_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = true    # scales to zero when idle — this is what keeps it free
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

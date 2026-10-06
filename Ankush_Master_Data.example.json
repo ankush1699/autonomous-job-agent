@@ -1,0 +1,308 @@
+{
+  "_example": true,
+  "_readme": "FICTIONAL sample data so the project runs on a fresh clone. Copy this file to Ankush_Master_Data.json (gitignored) and replace every value with your own real, verifiable experience \u2014 the agent never invents facts, it only rearranges what is here.",
+  "personal_info": {
+    "name": "Alex Rivera",
+    "email": "alex.rivera@example.com",
+    "hrefemail": "mailto:alex.rivera@example.com",
+    "phone": "555-010-0100",
+    "hrefphone": "tel:5550100100",
+    "location": "Austin, TX",
+    "linkedin": "linkedin.com/in/alex-rivera-example",
+    "hreflinkedin": "https://www.linkedin.com/in/alex-rivera-example/",
+    "github": "github.com/alex-rivera-example",
+    "hrefgithub": "https://github.com/alex-rivera-example/",
+    "portfolio": "alexrivera.example.com",
+    "hrefportfolio": "https://alexrivera.example.com/",
+    "headline": "SOFTWARE ENGINEER \u2022 FULL-STACK & AI SYSTEMS",
+    "headline_variants": {
+      "fullstack": "SOFTWARE ENGINEER \u2022 FULL-STACK & AI SYSTEMS",
+      "ai": "SOFTWARE ENGINEER \u2022 AI SYSTEMS & FULL-STACK",
+      "backend": "SOFTWARE ENGINEER \u2022 BACKEND & FULL-STACK",
+      "frontend": "SOFTWARE ENGINEER \u2022 FRONTEND & FULL-STACK"
+    }
+  },
+  "summary": "Software engineer with 3+ years of production experience building React and Java services for a logistics platform with 20K+ users. Built a retrieval-augmented support assistant as a personal project. B.S. in Computer Science, Example State University.",
+  "summary_variants": {
+    "fullstack": "Software engineer with 3+ years of production experience building React and Java services for a logistics platform with 20K+ users. Built a retrieval-augmented support assistant as a personal project. B.S. in Computer Science, Example State University.",
+    "ai": "Software engineer who built a retrieval-augmented support assistant as a personal project, on top of 3+ years of production work shipping React and Java services for a logistics platform with 20K+ users. B.S. in Computer Science, Example State University."
+  },
+  "technical_skills": {
+    "Languages": [
+      "Java",
+      "Python",
+      "TypeScript",
+      "SQL"
+    ],
+    "Frontend": [
+      "React",
+      "HTML5",
+      "CSS3",
+      "Responsive Design"
+    ],
+    "Backend": [
+      "Spring Boot",
+      "FastAPI",
+      "RESTful APIs",
+      "JWT/Token Auth"
+    ],
+    "Databases": [
+      "PostgreSQL",
+      "Redis"
+    ],
+    "DevOps": [
+      "Docker",
+      "GitHub Actions",
+      "CI/CD"
+    ],
+    "Testing": [
+      "JUnit",
+      "Pytest",
+      "Jest"
+    ],
+    "Generative AI": [
+      "Anthropic API",
+      "Prompt Engineering",
+      "Vector Search"
+    ],
+    "Tools": [
+      "Git",
+      "Postman",
+      "Jira",
+      "Agile/Scrum"
+    ]
+  },
+  "experience": [
+    {
+      "title": "Software Engineer",
+      "company": "Northwind Logistics",
+      "location": "Austin, TX",
+      "duration": "Jun 2021 - Aug 2024",
+      "section": "professional",
+      "resume_min_bullets": 3,
+      "resume_max_bullets": 5,
+      "tech_stack": [
+        "React",
+        "TypeScript",
+        "Java",
+        "Spring Boot",
+        "PostgreSQL",
+        "Docker",
+        "GitHub Actions"
+      ],
+      "bullets": [
+        {
+          "text": "Built the shipment-tracking dashboard in React and TypeScript, used daily by 20K+ customers.",
+          "tags": [
+            "frontend",
+            "react",
+            "typescript",
+            "scale"
+          ],
+          "is_quantified": true,
+          "metric_source": "",
+          "is_verified": false,
+          "technologies_used": [
+            "React",
+            "TypeScript"
+          ],
+          "proficiency_level": "production",
+          "base_priority": 1
+        },
+        {
+          "text": "Wrote Spring Boot REST endpoints for order lookup and status updates, with JWT authentication and role checks.",
+          "tags": [
+            "backend",
+            "java",
+            "spring boot",
+            "api",
+            "jwt",
+            "security"
+          ],
+          "is_quantified": false,
+          "metric_source": "",
+          "is_verified": false,
+          "technologies_used": [
+            "Java",
+            "Spring Boot",
+            "JWT/Token Auth"
+          ],
+          "proficiency_level": "production",
+          "base_priority": 2
+        },
+        {
+          "text": "Cut dashboard load time by moving report queries to indexed PostgreSQL views.",
+          "tags": [
+            "performance",
+            "postgresql",
+            "backend"
+          ],
+          "is_quantified": true,
+          "metric_source": "",
+          "is_verified": false,
+          "technologies_used": [
+            "PostgreSQL"
+          ],
+          "proficiency_level": "production",
+          "base_priority": 3
+        },
+        {
+          "text": "Moved releases from manual deploys to a GitHub Actions pipeline with automated tests and Docker images.",
+          "tags": [
+            "devops",
+            "ci/cd",
+            "docker",
+            "automation"
+          ],
+          "is_quantified": false,
+          "metric_source": "",
+          "is_verified": false,
+          "technologies_used": [
+            "GitHub Actions",
+            "Docker",
+            "CI/CD"
+          ],
+          "proficiency_level": "production",
+          "base_priority": 4
+        },
+        {
+          "text": "Mentored 2 junior engineers through code reviews and pair programming.",
+          "tags": [
+            "leadership",
+            "mentoring",
+            "code review"
+          ],
+          "is_quantified": true,
+          "metric_source": "",
+          "is_verified": false,
+          "technologies_used": [],
+          "proficiency_level": "production"
+        },
+        {
+          "text": "Traced production incidents through service logs and fixed them during release windows.",
+          "tags": [
+            "debugging",
+            "production",
+            "incident response"
+          ],
+          "is_quantified": false,
+          "metric_source": "",
+          "is_verified": false,
+          "technologies_used": [],
+          "proficiency_level": "production"
+        }
+      ]
+    },
+    {
+      "title": "Software Engineering Intern",
+      "company": "Contoso Labs",
+      "location": "Remote",
+      "duration": "Jun 2020 - Aug 2020",
+      "section": "internship",
+      "resume_min_bullets": 1,
+      "resume_max_bullets": 2,
+      "tech_stack": [
+        "Python",
+        "FastAPI",
+        "Pytest"
+      ],
+      "bullets": [
+        {
+          "text": "Built an internal FastAPI service that validates uploaded CSV files before they reach the data team.",
+          "tags": [
+            "backend",
+            "python",
+            "fastapi",
+            "automation"
+          ],
+          "is_quantified": false,
+          "metric_source": "",
+          "is_verified": false,
+          "technologies_used": [
+            "Python",
+            "FastAPI"
+          ],
+          "proficiency_level": "production",
+          "base_priority": 1
+        },
+        {
+          "text": "Added a Pytest suite covering the validation rules.",
+          "tags": [
+            "testing",
+            "python",
+            "pytest"
+          ],
+          "is_quantified": false,
+          "metric_source": "",
+          "is_verified": false,
+          "technologies_used": [
+            "Pytest"
+          ],
+          "proficiency_level": "production",
+          "base_priority": 2
+        }
+      ]
+    }
+  ],
+  "education": [
+    {
+      "degree": "B.S. Computer Science",
+      "university": "Example State University, Austin, TX",
+      "gpa": "3.6/4.0",
+      "duration": "Aug 2017 - May 2021",
+      "graduation_status": "completed",
+      "coursework": [
+        "Data Structures and Algorithms",
+        "Operating Systems",
+        "Database Systems",
+        "Software Engineering"
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "name": "Support Assistant: RAG over Product Docs",
+      "duration": "Jan 2026 - Mar 2026",
+      "tech_stack": [
+        "Python",
+        "FastAPI",
+        "PostgreSQL (pgvector)",
+        "Anthropic API",
+        "Pytest"
+      ],
+      "domain": "AI Engineering / Full-Stack",
+      "bullets": [
+        {
+          "text": "Built a retrieval-augmented assistant that answers questions from product documentation and cites the source passage with each answer."
+        },
+        {
+          "text": "Wrote a 40-question evaluation set and measured retrieval hit rate before and after adding a reranking step."
+        }
+      ]
+    },
+    {
+      "name": "Trail Notes: Offline-First Hiking Log",
+      "duration": "Sep 2025 - Nov 2025",
+      "tech_stack": [
+        "React",
+        "TypeScript",
+        "IndexedDB"
+      ],
+      "domain": "Frontend / Full-Stack",
+      "bullets": [
+        {
+          "text": "Built an offline-first hiking log in React that syncs to a REST API when the connection returns."
+        }
+      ]
+    }
+  ],
+  "project_order_by_variant": {
+    "ai": [
+      "Support Assistant: RAG over Product Docs",
+      "Trail Notes: Offline-First Hiking Log"
+    ]
+  },
+  "achievements": [
+    "Recognized with the 2023 Engineering Excellence award for shipping the tracking dashboard."
+  ]
+}

@@ -1,0 +1,182 @@
+\documentclass[letterpaper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[left=0.75in, top=0.5in, right=0.75in, bottom=0.4in]{geometry}
+\usepackage[hidelinks]{hyperref}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{scrextend}
+\changefontsizes{10pt}
+
+\definecolor{primary}{HTML}{34749B}
+\definecolor{contactgray}{HTML}{666666}
+\definecolor{dividergray}{HTML}{D8D8D8}
+
+\titleformat{\section}{\normalsize\bfseries\color{primary}}{}{0em}{\MakeUppercase}[\vspace{-0.4em}\rule{\textwidth}{0.5pt}]
+\titlespacing{\section}{0pt}{6pt}{2pt}
+
+\begin{document}
+\pagestyle{empty}
+
+% --- HEADER ---
+\begin{center}
+    {\fontsize{18pt}{20pt}\selectfont \textbf{\color{primary}\MakeUppercase{\VAR{ personal_info.name }}}} \\
+    \vspace{3pt}
+    \BLOCK{ if personal_info.headline }
+    {\fontsize{10pt}{12pt}\selectfont \textbf{\color{primary}\VAR{ personal_info.headline }}} \\
+    \vspace{5pt}
+    \BLOCK{ endif }
+    \color{contactgray}
+    \href{\VAR{ personal_info.hrefphone }}{\VAR{ personal_info.phone }} \textbar\
+    \href{\VAR{ personal_info.hrefemail }}{\VAR{ personal_info.email }} \textbar\
+    \VAR{ personal_info.location } \\
+    \vspace{2pt}
+    \href{\VAR{ personal_info.hreflinkedin }}{\VAR{ personal_info.linkedin }} \textbar\
+    \href{\VAR{ personal_info.hrefgithub }}{\VAR{ personal_info.github }} \textbar\
+    \href{\VAR{ personal_info.hrefportfolio }}{\VAR{ personal_info.portfolio }}
+\end{center}
+\color{black}
+\vspace{-6pt}
+
+% --- PROFESSIONAL SUMMARY ---
+\BLOCK{ if summary }
+\section*{Professional Summary}
+\noindent \VAR{ summary }
+\vspace{2pt}
+\BLOCK{ endif }
+
+% --- TECHNICAL SKILLS ---
+\BLOCK{ if technical_skills }
+\section*{Technical Skills}
+\begin{itemize}[leftmargin=*, itemsep=1pt, parsep=0pt, topsep=2pt]
+    \BLOCK{ for category, skills in technical_skills.items() if category not in ['Testing', 'Tools'] }
+    \item \textbf{\VAR{ category }}: \VAR{ skills | join(', ') }
+    \BLOCK{ endfor }
+    \BLOCK{ if technical_skills.get('Testing') or technical_skills.get('Tools') }
+    \item \textbf{Testing \& Tools}: \VAR{ (technical_skills.get('Testing', []) + technical_skills.get('Tools', [])) | join(', ') }
+    \BLOCK{ endif }
+\end{itemize}
+\vspace{-2pt}
+\BLOCK{ endif }
+
+% --- PROFESSIONAL EXPERIENCE ---  (full-time roles; date order within each group, newest first.
+% Roles without a `section` field fall into this group.)
+\BLOCK{ if experience }
+\BLOCK{ set group = experience | rejectattr('section', 'equalto', 'internship') | list }
+\BLOCK{ if group }
+\section*{Professional Experience}
+\BLOCK{ for exp in group }
+\noindent \textbf{\VAR{ exp.title }} \textbar\
+\BLOCK{ if exp.company_url }
+\href{\VAR{ exp.company_url }}{\VAR{ exp.company }}
+\BLOCK{ else }
+\VAR{ exp.company }
+\BLOCK{ endif }
+\textbar\ \textit{\VAR{ exp.location }} \hfill \VAR{ exp.duration }
+\BLOCK{ if exp.tech_stack }
+\\[1pt]{\small\itshape\color{contactgray} Tech: \VAR{ exp.tech_stack | join(', ') }}
+\BLOCK{ endif }
+\begin{itemize}[leftmargin=*, itemsep=2pt, parsep=0pt, topsep=2pt]
+    \BLOCK{ for bullet in exp.bullets }
+    \item \VAR{ bullet.text }
+    \BLOCK{ endfor }
+\end{itemize}
+\BLOCK{ if not loop.last }
+\vspace{5pt}
+{\color{dividergray}\hrule height 0.4pt}
+\vspace{5pt}
+\BLOCK{ else }
+\vspace{2pt}
+\BLOCK{ endif }
+\BLOCK{ endfor }
+\BLOCK{ endif }
+
+% --- INTERNSHIPS & FELLOWSHIPS ---
+\BLOCK{ set group = experience | selectattr('section', 'equalto', 'internship') | list }
+\BLOCK{ if group }
+\section*{Internships \& Fellowships}
+\BLOCK{ for exp in group }
+\noindent \textbf{\VAR{ exp.title }} \textbar\
+\BLOCK{ if exp.company_url }
+\href{\VAR{ exp.company_url }}{\VAR{ exp.company }}
+\BLOCK{ else }
+\VAR{ exp.company }
+\BLOCK{ endif }
+\textbar\ \textit{\VAR{ exp.location }} \hfill \VAR{ exp.duration }
+\BLOCK{ if exp.tech_stack }
+\\[1pt]{\small\itshape\color{contactgray} Tech: \VAR{ exp.tech_stack | join(', ') }}
+\BLOCK{ endif }
+\begin{itemize}[leftmargin=*, itemsep=2pt, parsep=0pt, topsep=2pt]
+    \BLOCK{ for bullet in exp.bullets }
+    \item \VAR{ bullet.text }
+    \BLOCK{ endfor }
+\end{itemize}
+\BLOCK{ if not loop.last }
+\vspace{5pt}
+{\color{dividergray}\hrule height 0.4pt}
+\vspace{5pt}
+\BLOCK{ else }
+\vspace{2pt}
+\BLOCK{ endif }
+\BLOCK{ endfor }
+\BLOCK{ endif }
+\BLOCK{ endif }
+
+% --- TECHNICAL PROJECTS --- (own page: Professional Experience must not spill
+% onto page 2 mid-bullet; page 2 always opens cleanly with Projects, then Education)
+\BLOCK{ if projects }
+\clearpage
+\section*{Technical Projects}
+\BLOCK{ for proj in projects }
+\noindent \textbf{\VAR{ proj.name }}\BLOCK{ if proj.github_url } \textbar\ \href{\VAR{ proj.github_url }}{GitHub}\BLOCK{ endif } \hfill \VAR{ proj.duration } \\
+\textit{\VAR{ proj.tech_stack | join(', ') }}
+\begin{itemize}[leftmargin=*, itemsep=2pt, parsep=0pt, topsep=2pt]
+    \BLOCK{ for bullet in proj.bullets }
+    \item \VAR{ bullet.text }
+    \BLOCK{ endfor }
+\end{itemize}
+\BLOCK{ if not loop.last }
+\vspace{5pt}
+{\color{dividergray}\hrule height 0.4pt}
+\vspace{5pt}
+\BLOCK{ else }
+\vspace{2pt}
+\BLOCK{ endif }
+\BLOCK{ endfor }
+\BLOCK{ endif }
+
+% --- EDUCATION --- (page 2, after Technical Projects)
+\BLOCK{ if education }
+\BLOCK{ if not projects }\clearpage\BLOCK{ endif }
+\section*{Education}
+\BLOCK{ for edu in education }
+\noindent \textbf{\VAR{ edu.degree }} \hfill \VAR{ edu.duration }\BLOCK{ if edu.graduation_status == 'completed' } (Completed)\BLOCK{ endif } \\
+\textit{\VAR{ edu.university }}\BLOCK{ if edu.gpa } \textbar\ GPA: \VAR{ edu.gpa }\BLOCK{ elif edu.cgpa } \textbar\ CGPA: \VAR{ edu.cgpa }\BLOCK{ endif }
+\BLOCK{ if edu.coursework }
+\\[2pt]
+\textbf{Coursework}: \VAR{ edu.coursework | join(', ') }
+\BLOCK{ endif }
+\BLOCK{ if not loop.last }
+\par\vspace{5pt}
+{\color{dividergray}\hrule height 0.4pt}
+\vspace{5pt}
+\BLOCK{ else }
+\par\vspace{4pt}
+\BLOCK{ endif }
+\BLOCK{ endfor }
+\BLOCK{ endif }
+
+% --- HONORS & ACHIEVEMENTS ---
+\BLOCK{ if achievements }
+\vspace{-4pt}
+\section*{Honors \& Achievements}
+\begin{itemize}[leftmargin=*, itemsep=1pt, parsep=0pt, topsep=2pt]
+    \BLOCK{ for item in achievements }
+    \item \VAR{ item }
+    \BLOCK{ endfor }
+\end{itemize}
+\BLOCK{ endif }
+
+\end{document}

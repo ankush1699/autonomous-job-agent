@@ -1,0 +1,31 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # The real master data is private and gitignored; CI runs on the fictional sample.
+      - name: Use the sample master data
+        run: cp Ankush_Master_Data.example.json Ankush_Master_Data.json
+
+      # No real API keys on purpose: conftest.py supplies a placeholder, and the suite covers
+      # deterministic logic only (it must never make a paid LLM call).
+      - name: Run tests
+        run: python -m pytest -q

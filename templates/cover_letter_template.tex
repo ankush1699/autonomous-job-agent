@@ -1,0 +1,80 @@
+\documentclass[letterpaper]{article}
+\usepackage[T1]{fontenc} 
+
+% 1. CHANGED TO 1-INCH MARGINS
+\usepackage[margin=1in]{geometry} 
+\usepackage[hidelinks]{hyperref}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{helvet}
+
+% 2. ADDED PARSKIP FOR PERFECT PARAGRAPH SEPARATION
+\usepackage{parskip} 
+
+% 3. ADDED SETSPACE FOR MODERN LINE SPACING
+\usepackage{setspace}
+\setstretch{1.15} 
+
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{scrextend}
+\changefontsizes{10pt}
+
+\definecolor{primary}{HTML}{34749B} 
+\definecolor{contactgray}{HTML}{666666} 
+
+\begin{document}
+\pagestyle{empty}
+
+% --- HEADER ---
+\begin{center}
+    {\fontsize{16pt}{18pt}\selectfont \textbf{\color{primary}\MakeUppercase{\VAR{ personal_info.name }}}} \\
+    \vspace{4pt} 
+    \color{contactgray}
+    \href{\VAR{ personal_info.hrefphone }}{\VAR{ personal_info.phone }} \textbar\ 
+    \href{\VAR{ personal_info.hrefemail }}{\VAR{ personal_info.email }} \textbar\ 
+    \VAR{ personal_info.location } \\
+    \vspace{1pt}
+    \href{\VAR{ personal_info.hreflinkedin }}{\VAR{ personal_info.linkedin }} \textbar\ 
+    \href{\VAR{ personal_info.hrefgithub }}{\VAR{ personal_info.github }} \textbar\ 
+    \href{\VAR{ personal_info.hrefportfolio }}{\VAR{ personal_info.portfolio }}
+\end{center}
+\color{black}
+\vspace{4pt}
+
+% --- HORIZONTAL LINE ---
+\color{primary} 
+\hrule
+\vspace{16pt}
+
+\color{black}
+
+% --- DATE & GREETING ---
+\VAR{ date }
+
+\vspace{12pt}
+
+Hiring Team \\
+\VAR{ company_name }
+
+\vspace{8pt}
+
+\textbf{Re: Application for \VAR{ job_title }}
+
+\vspace{6pt}
+
+\textbf{Dear \VAR{ company_name } Hiring Team,}
+
+% --- DYNAMIC BODY ---
+\BLOCK{ for paragraph in cover_letter_paragraphs }
+\noindent \VAR{ paragraph }
+\par\vspace{10pt}
+\BLOCK{ endfor }
+
+\noindent Thank you for your time and consideration. 
+
+\vspace{12pt}
+% --- SIGN OFF ---
+\noindent \textbf{Sincerely,}\\[8pt]
+\textbf{\VAR{ personal_info.name }}
+
+\end{document}

@@ -1,0 +1,49 @@
+# ── Secrets — NEVER commit these ──────────────────────────────────────────────
+.env
+google_credentials.json
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+venv/
+
+# ── LaTeX build artifacts ─────────────────────────────────────────────────────
+*.aux
+*.log
+*.out
+*.synctex.gz
+
+# ── Generated output (local runs) ─────────────────────────────────────────────
+# PDFs and JSON snapshots produced by the pipeline live in ~/Documents/Resumes/
+# and in ./output/ (GitHub Actions) — neither should be committed.
+output/
+temp_data.json
+temp_job_data.json
+profile_cache.txt
+
+# ── Manual template-check scratch output (tests/manual_check_*.py write here) ──
+# Root-anchored (leading /) so this does NOT match real tests under tests/.
+/test_cl.tex
+/test_cl.pdf
+/test_resume.tex
+/test_resume.pdf
+
+# ── pytest ────────────────────────────────────────────────────────────────────
+.pytest_cache/
+
+# ── Old sample resumes ────────────────────────────────────────────────────────
+resume/
+
+# ── macOS ─────────────────────────────────────────────────────────────────────
+.DS_Store
+
+# NOTE: Ankush_Master_Data.json is intentionally tracked.
+# Keep this repo PRIVATE — the file contains personal contact information.
+
+# ── Private data — each user supplies their own (see README "Using your own data") ──
+Ankush_Master_Data.json
+profile_cache.txt
+.claude/
+.cursor/
+*.code-workspace
