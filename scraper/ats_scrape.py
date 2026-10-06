@@ -151,17 +151,34 @@ def _stable_id(platform: str, url: str) -> str:
     return f"{platform}:{hashlib.md5(url.encode()).hexdigest()[:10]}"
 
 
+# Spelling variants of the same role that job boards normalise for you but a
+# plain title match doesn't: "Full-Stack" / "Fullstack" / "Full Stack",
+# "Front-End" / "Frontend", "Back-End" / "Backend".
+_SEPARATORS_RE = re.compile(r"[-_/\s]+")
+_COMPOUNDS = (("full stack", "fullstack"), ("front end", "frontend"), ("back end", "backend"))
+
+
+def _canonical_title(text: str) -> str:
+    t = _SEPARATORS_RE.sub(" ", (text or "").lower()).strip()
+    for spaced, joined in _COMPOUNDS:
+        t = t.replace(spaced, joined)
+    return t
+
+
 def _matches_keywords(title: str, keywords: list[str]) -> bool:
     """
     ATS board APIs don't support server-side keyword search (unlike LinkedIn/
     Indeed) — every posting on the board is returned, so keyword matching
     happens client-side against the title. Case-insensitive substring match
-    against ANY keyword.
+    against ANY keyword, after canonicalising both sides (Oct 2026) so that
+    hyphen/space/compound spellings are equal: "Full Stack Engineer" now also
+    matches "Full-Stack Engineer" and "Fullstack Engineer". This only ever
+    ADDS matches — anything the old plain substring matched still matches.
     """
     if not keywords:
         return True
-    title_lower = (title or "").lower()
-    return any(kw.strip().lower() in title_lower for kw in keywords if kw.strip())
+    title_canon = _canonical_title(title)
+    return any(_canonical_title(kw) in title_canon for kw in keywords if kw.strip())
 
 
 # ---------------------------------------------------------------------------
